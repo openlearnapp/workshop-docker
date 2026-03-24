@@ -1,0 +1,255 @@
+version: 2
+number: 11
+title: "Multi-Container-Anwendungen"
+description: "Eine vollständige App mit mehreren Services aufbauen und orchestrieren."
+sections:
+  - title: "Architektur einer Multi-Container-App"
+    explanation: |
+      Eine typische Webanwendung besteht aus mehreren Komponenten:
+
+      ```
+      Browser → Nginx (Reverse Proxy) → API (Node.js) → PostgreSQL
+                         ↓                    ↓
+                  Static Files            Redis (Cache)
+      ```
+
+      In Docker wird **jeder Dienst ein eigener Container**:
+      - **Nginx** — Reverse Proxy, serviert statische Dateien
+      - **API** — Die Anwendungslogik
+      - **PostgreSQL** — Relationale Datenbank
+      - **Redis** — Cache und Sessions
+
+      Das Prinzip: **Ein Prozess pro Container**. Jeder Container hat eine Aufgabe und kann unabhängig skaliert, aktualisiert und debugged werden.
+    examples:
+      - q: "Warum 'ein Prozess pro Container'?"
+        a: "Bessere Isolation, einfacheres Debugging, unabhängige Skalierung und Updates. Wenn die API mehr Last hat, skalierst du nur den API-Container — nicht die Datenbank."
+        labels: ["Architektur"]
+        rel:
+          - ["single-process", "Isolation + Skalierung", "Container-Prinzip"]
+      - q: "Warum stellt man Nginx vor die API?"
+        a: "Nginx als Reverse Proxy übernimmt SSL-Terminierung, Caching, Kompression, Rate-Limiting und serviert statische Dateien — das entlastet die API für die eigentliche Logik."
+        labels: ["Architektur"]
+        rel:
+          - ["reverse-proxy-vorteil", "SSL + Caching + Static", "API-Entlastung"]
+      - q: "Wann braucht man Redis zusätzlich zur Datenbank?"
+        a: "Für Sessions, Caching häufiger DB-Abfragen, Queues und Echtzeit-Daten. Redis ist im RAM und dadurch Größenordnungen schneller als eine Festplatten-DB."
+        labels: ["Architektur"]
+        rel:
+          - ["redis-usecase", "Cache + Sessions", "Performance"]
+
+  - title: "Das komplette Compose-File"
+    explanation: |
+      Hier ist eine vollständige `docker-compose.yaml` für eine Produktions-nahe App:
+
+      ```yaml
+      services:
+        nginx:
+          image: nginx:alpine
+          ports:
+            - "80:80"
+          volumes:
+            - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - static-files:/usr/share/nginx/html:ro
+          depends_on:
+            api:
+              condition: service_healthy
+          networks:
+            - frontend
+
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile
+          environment:
+            DATABASE_URL: postgresql://app:secret@db:5432/myapp
+            REDIS_URL: redis://redis:6379
+            NODE_ENV: production
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+          depends_on:
+            db:
+              condition: service_healthy
+            redis:
+              condition: service_started
+          networks:
+            - frontend
+            - backend
+          restart: unless-stopped
+
+        db:
+          image: postgres:16-alpine
+          environment:
+            POSTGRES_USER: app
+            POSTGRES_PASSWORD: secret
+            POSTGRES_DB: myapp
+          volumes:
+            - db-data:/var/lib/postgresql/data
+            - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U app"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+          networks:
+            - backend
+          restart: unless-stopped
+
+        redis:
+          image: redis:7-alpine
+          volumes:
+            - redis-data:/data
+          networks:
+            - backend
+          restart: unless-stopped
+
+      volumes:
+        db-data:
+        redis-data:
+        static-files:
+
+      networks:
+        frontend:
+        backend:
+          internal: true
+      ```
+    examples:
+      - q: "Warum ist das backend-Netzwerk 'internal: true'?"
+        a: "Die Datenbank und Redis brauchen keinen Internet-Zugang. 'internal: true' verhindert, dass diese Container nach außen kommunizieren können — eine wichtige Sicherheitsmaßnahme."
+        labels: ["Compose"]
+        rel:
+          - ["backend-internal", "kein Internet für DB", "Sicherheitsmaßnahme"]
+      - q: "Warum hat der API-Service zwei Netzwerke?"
+        a: "Er ist die Brücke: Im frontend-Netzwerk empfängt er Anfragen von Nginx, im backend-Netzwerk greift er auf DB und Redis zu. Nginx kann die DB nicht direkt erreichen."
+        labels: ["Compose"]
+        rel:
+          - ["api-bridge", "Frontend ↔ Backend", "Netzwerk-Architektur"]
+      - q: "Was macht init.sql als Bind Mount bei PostgreSQL?"
+        a: "PostgreSQL führt alle SQL-Dateien in /docker-entrypoint-initdb.d/ beim ersten Start aus. Perfekt für Schema-Erstellung und Seed-Daten."
+        labels: ["Compose"]
+        rel:
+          - ["pg-init-sql", "Datenbank-Initialisierung", "Erster Start"]
+
+  - title: "Entwicklungs- vs. Produktions-Setup"
+    explanation: |
+      Oft brauchst du verschiedene Konfigurationen. Docker Compose unterstützt **Override-Dateien**:
+
+      **docker-compose.yaml** (Basis):
+      ```yaml
+      services:
+        api:
+          build: ./api
+          environment:
+            NODE_ENV: production
+      ```
+
+      **docker-compose.override.yaml** (Entwicklung):
+      ```yaml
+      services:
+        api:
+          volumes:
+            - ./api:/app        # Live-Reload
+          environment:
+            NODE_ENV: development
+            DEBUG: "true"
+          ports:
+            - "9229:9229"       # Debugger-Port
+      ```
+
+      Compose merged die Dateien automatisch! Für Produktion:
+      ```bash
+      docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+      ```
+    examples:
+      - q: "Was ist docker-compose.override.yaml?"
+        a: "Eine Datei, die automatisch mit docker-compose.yaml gemerged wird — ohne extra Flags. Perfekt für lokale Entwicklungseinstellungen, die nicht in die Produktion gehören."
+        labels: ["Konfiguration"]
+        rel:
+          - ["compose-override", "automatisches Merge", "Dev-Einstellungen"]
+      - q: "docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d"
+        a: "Startet mit der Basis-Konfiguration plus den Produktions-Overrides. Die zweite Datei überschreibt/ergänzt Werte aus der ersten."
+        labels: ["Konfiguration"]
+        rel:
+          - ["compose-multi-file", "Produktions-Overrides", "Explizites Merge"]
+      - q: "Wie verhindert man, dass die Override-Datei in Produktion geladen wird?"
+        a: "In Produktion explizit nur die Basis-Datei angeben: -f docker-compose.yaml -f docker-compose.prod.yaml. Oder: die Override-Datei in .gitignore aufnehmen."
+        labels: ["Konfiguration"]
+        rel:
+          - ["override-production", "explizite Datei-Angabe", "Sicherheit"]
+
+  - title: "Debugging von Multi-Container-Apps"
+    explanation: |
+      Wenn etwas nicht funktioniert, hier die Debugging-Strategie:
+
+      ```bash
+      # 1. Status aller Services prüfen
+      docker compose ps
+
+      # 2. Logs des problematischen Services
+      docker compose logs api
+
+      # 3. In den Container hineinschauen
+      docker compose exec api sh
+
+      # 4. Netzwerk-Verbindung testen
+      docker compose exec api ping db
+      docker compose exec api curl http://localhost:3000/health
+
+      # 5. Umgebungsvariablen prüfen
+      docker compose exec api env
+
+      # 6. Container-Konfiguration inspizieren
+      docker compose config
+      ```
+
+      **`docker compose config`** ist Gold wert — es zeigt die **aufgelöste Konfiguration** nach dem Merge aller Dateien und Variable-Substitution.
+    examples:
+      - q: "docker compose config"
+        a: "Zeigt die vollständig aufgelöste docker-compose.yaml — mit allen Overrides, Variable-Substitutionen und Defaults. Perfekt um zu sehen, was Docker Compose wirklich verwendet."
+        labels: ["Debugging"]
+        rel:
+          - ["compose-config", "aufgelöste Konfiguration", "Fehler finden"]
+      - q: "docker compose exec api sh"
+        a: "Öffnet eine Shell im laufenden api-Service. Von dort kannst du Netzwerk testen, Dateien prüfen, Umgebungsvariablen checken und Prozesse inspizieren."
+        labels: ["Debugging"]
+        rel:
+          - ["compose-exec", "Shell im Service", "Interaktives Debugging"]
+      - q: "Woran erkennst du, dass ein Service nicht 'healthy' ist?"
+        a: "In 'docker compose ps' steht bei Status 'unhealthy' oder 'starting'. In den Logs des Services findest du dann die Ursache — oft fehlende DB-Verbindung oder falscher Port."
+        labels: ["Debugging"]
+        rel:
+          - ["unhealthy-debug", "Status prüfen", "Logs lesen"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Multi-Container-Apps!
+    examples:
+      - q: "Welche Datei wird automatisch mit docker-compose.yaml gemerged?"
+        type: input
+        a:
+          - "docker-compose.override.yaml"
+          - "docker-compose.override.yml"
+      - q: "Warum wird ein Prozess pro Container empfohlen?"
+        type: select
+        options:
+          - text: "Bessere Isolation, unabhängige Skalierung und einfacheres Debugging"
+            correct: true
+          - text: "Docker erlaubt nur einen Prozess"
+          - text: "Container starten schneller mit einem Prozess"
+          - text: "Es braucht weniger Speicher"
+      - q: "Welche Aussagen über die gezeigte App-Architektur sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Nginx kann die Datenbank nicht direkt erreichen"
+            correct: true
+          - text: "Die API ist in zwei Netzwerken (frontend + backend)"
+            correct: true
+          - text: "Redis und PostgreSQL sind im backend-Netzwerk ohne Internet"
+            correct: true
+          - text: "Alle Services teilen sich ein einziges Netzwerk"
+      - q: "Welcher Befehl zeigt die vollständig aufgelöste Compose-Konfiguration?"
+        type: input
+        a:
+          - "docker compose config"

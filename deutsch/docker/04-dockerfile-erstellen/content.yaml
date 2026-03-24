@@ -1,0 +1,186 @@
+version: 2
+number: 4
+title: "Eigene Images mit Dockerfile"
+description: "Eigene Docker-Images mit einem Dockerfile erstellen und optimieren."
+sections:
+  - title: "Dein erstes Dockerfile"
+    explanation: |
+      Ein Dockerfile ist eine **Textdatei ohne Dateiendung**, die Schritt für Schritt beschreibt, wie ein Image gebaut wird.
+
+      Hier ein einfaches Beispiel für eine Python-App:
+
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      COPY . .
+      EXPOSE 5000
+      CMD ["python", "app.py"]
+      ```
+
+      Jede Zeile ist eine **Anweisung**:
+      - `FROM` — Basis-Image (immer die erste Zeile!)
+      - `WORKDIR` — Arbeitsverzeichnis im Container
+      - `COPY` — Dateien vom Host in den Container kopieren
+      - `RUN` — Befehl während des Builds ausführen
+      - `EXPOSE` — Port dokumentieren (öffnet ihn nicht!)
+      - `CMD` — Startbefehl beim Container-Start
+    examples:
+      - q: "FROM python:3.12-slim"
+        a: "Definiert das Basis-Image. Alle nachfolgenden Anweisungen bauen darauf auf. Muss immer die erste Anweisung im Dockerfile sein."
+        labels: ["Dockerfile"]
+        rel:
+          - ["from-anweisung", "Basis-Image festlegen", "Dockerfile-Start"]
+      - q: "Warum wird requirements.txt VOR dem restlichen Code kopiert?"
+        a: "Für Layer-Caching: requirements.txt ändert sich selten. Wenn nur der Code geändert wird, kann Docker den pip-install-Layer aus dem Cache nehmen statt alles neu zu installieren."
+        labels: ["Dockerfile"]
+        rel:
+          - ["copy-reihenfolge", "Cache-Optimierung", "Build-Strategie"]
+      - q: "Was ist der Unterschied zwischen RUN und CMD?"
+        a: "RUN wird beim Image-Build ausgeführt und erzeugt einen Layer. CMD definiert den Standardbefehl beim Container-Start — wird erst zur Laufzeit ausgeführt."
+        labels: ["Dockerfile"]
+        rel:
+          - ["run-vs-cmd", "Build vs. Runtime", "Dockerfile-Anweisungen"]
+
+  - title: "Ein Image bauen"
+    explanation: |
+      Mit `docker build` erstellst du aus einem Dockerfile ein Image:
+
+      ```bash
+      # Image bauen und taggen
+      docker build -t meine-app:1.0 .
+
+      # Build mit anderem Dockerfile
+      docker build -t meine-app:1.0 -f Dockerfile.prod .
+      ```
+
+      Der **Punkt am Ende** ist der **Build-Context** — der Ordner, dessen Dateien Docker für `COPY` zur Verfügung stehen.
+
+      **Tipp:** Erstelle eine `.dockerignore`-Datei, um unnötige Dateien auszuschließen:
+
+      ```
+      node_modules
+      .git
+      .env
+      __pycache__
+      ```
+    examples:
+      - q: "docker build -t meine-app:1.0 ."
+        a: "Baut ein Image aus dem Dockerfile im aktuellen Verzeichnis und gibt ihm den Tag 'meine-app:1.0'. Der Punkt definiert den Build-Context."
+        labels: ["Build"]
+        rel:
+          - ["docker-build", "Image erstellen", "Tag vergeben"]
+      - q: "Was ist der Build-Context?"
+        a: "Der Ordner, den Docker beim Build als Dateiquelle nutzt. Alle COPY/ADD-Anweisungen beziehen sich auf diesen Ordner. Er wird komplett an den Docker-Daemon gesendet."
+        labels: ["Build"]
+        rel:
+          - ["build-context", "Dateiquelle für COPY", "Build-Grundlage"]
+      - q: "Warum braucht man eine .dockerignore?"
+        a: "Sie verhindert, dass unnötige Dateien (node_modules, .git, .env) in den Build-Context gelangen — das beschleunigt den Build und verhindert das versehentliche Einschließen sensibler Daten."
+        labels: ["Build"]
+        rel:
+          - ["dockerignore", "Build-Optimierung", "Sicherheit"]
+
+  - title: "Wichtige Dockerfile-Anweisungen"
+    explanation: |
+      Neben den Grundlagen gibt es weitere nützliche Anweisungen:
+
+      | Anweisung | Funktion | Beispiel |
+      |---|---|---|
+      | `ENV` | Umgebungsvariable setzen | `ENV NODE_ENV=production` |
+      | `ARG` | Build-Argument (nur während Build) | `ARG VERSION=1.0` |
+      | `ENTRYPOINT` | Fester Startbefehl | `ENTRYPOINT ["python"]` |
+      | `HEALTHCHECK` | Container-Gesundheit prüfen | `HEALTHCHECK CMD curl -f http://localhost/` |
+      | `USER` | Benutzer wechseln | `USER appuser` |
+      | `LABEL` | Metadaten hinzufügen | `LABEL version="1.0"` |
+
+      **CMD vs. ENTRYPOINT:**
+      - `CMD` kann beim `docker run` überschrieben werden
+      - `ENTRYPOINT` bleibt fix, `CMD` liefert Standard-Argumente dazu
+    examples:
+      - q: "ENV NODE_ENV=production"
+        a: "Setzt die Umgebungsvariable NODE_ENV auf 'production' — sie ist sowohl während des Builds als auch zur Laufzeit im Container verfügbar."
+        labels: ["Dockerfile"]
+        rel:
+          - ["env-anweisung", "Umgebungsvariable", "Build + Runtime"]
+      - q: "HEALTHCHECK --interval=30s CMD curl -f http://localhost:5000/health"
+        a: "Docker prüft alle 30 Sekunden die URL. Wenn der Check fehlschlägt, wird der Container als 'unhealthy' markiert — nützlich für Orchestrierung."
+        labels: ["Dockerfile"]
+        rel:
+          - ["healthcheck", "Container-Gesundheit", "Monitoring"]
+      - q: "Warum sollte man USER statt Root verwenden?"
+        a: "Aus Sicherheitsgründen: Wenn ein Container als Root läuft und kompromittiert wird, hat der Angreifer Root-Rechte. Mit einem unprivilegierten User begrenzt man den Schaden."
+        labels: ["Dockerfile"]
+        rel:
+          - ["user-security", "Least Privilege", "Container-Sicherheit"]
+
+  - title: "Multi-Stage Builds"
+    explanation: |
+      Multi-Stage Builds sind ein **Gamechanger** für Image-Größen:
+
+      ```dockerfile
+      # Stage 1: Build
+      FROM node:20 AS builder
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci
+      COPY . .
+      RUN npm run build
+
+      # Stage 2: Production
+      FROM nginx:alpine
+      COPY --from=builder /app/dist /usr/share/nginx/html
+      EXPOSE 80
+      CMD ["nginx", "-g", "daemon off;"]
+      ```
+
+      **Ergebnis:** Das finale Image enthält **nur Nginx + die gebauten Dateien** — kein Node.js, kein npm, kein Quellcode. Statt 1 GB nur noch ~25 MB!
+    examples:
+      - q: "COPY --from=builder /app/dist /usr/share/nginx/html"
+        a: "Kopiert Dateien aus der Build-Stage (benannt 'builder') ins finale Image. Nur die Build-Artefakte werden übernommen, nicht die Build-Tools."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["copy-from-stage", "Stage-Artefakte", "Größen-Optimierung"]
+      - q: "Wie viele Images erzeugt ein Multi-Stage Build?"
+        a: "Nur eins — das finale Image. Alle Zwischen-Stages werden nach dem Build verworfen. Das Ergebnis ist ein schlankes Produktions-Image."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["multi-stage-result", "ein finales Image", "Zwischen-Stages verworfen"]
+      - q: "Warum ist das finale Image bei Multi-Stage so viel kleiner?"
+        a: "Weil Build-Tools (Compiler, npm, node_modules) nur in der Build-Stage existieren. Das Produktions-Image enthält nur die Runtime und die fertigen Artefakte."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["multi-stage-size", "Build-Tools entfernt", "Produktions-Optimierung"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Dockerfiles!
+    examples:
+      - q: "Welche Anweisung muss immer die erste im Dockerfile sein?"
+        type: input
+        a:
+          - "FROM"
+      - q: "Was passiert bei EXPOSE 5000?"
+        type: select
+        options:
+          - text: "Es dokumentiert den Port, öffnet ihn aber nicht"
+            correct: true
+          - text: "Der Port wird automatisch nach außen freigegeben"
+          - text: "Der Container lauscht auf Port 5000"
+          - text: "Es blockiert Port 5000 auf dem Host"
+      - q: "Welche Aussagen über Multi-Stage Builds sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Das finale Image enthält nur die letzte Stage"
+            correct: true
+          - text: "Sie reduzieren die Image-Größe erheblich"
+            correct: true
+          - text: "Man braucht mehrere Dockerfiles"
+          - text: "COPY --from kopiert Dateien aus einer anderen Stage"
+            correct: true
+      - q: "Welche Datei verhindert, dass unnötige Dateien in den Build gelangen?"
+        type: input
+        a:
+          - ".dockerignore"
+          - "dockerignore"

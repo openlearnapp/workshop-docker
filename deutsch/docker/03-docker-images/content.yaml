@@ -1,0 +1,178 @@
+version: 2
+number: 3
+title: "Docker Images verstehen"
+description: "Was sind Images, wie findet man sie und wie funktionieren Layers?"
+sections:
+  - title: "Was ist ein Docker Image?"
+    explanation: |
+      Ein Docker Image ist ein **schreibgeschütztes Paket**, das alles enthält, was eine Anwendung zum Laufen braucht:
+
+      - Betriebssystem-Grundlage (z.B. Alpine Linux, Ubuntu)
+      - Runtime (z.B. Node.js, Python)
+      - Anwendungscode
+      - Abhängigkeiten und Bibliotheken
+      - Konfigurationsdateien
+
+      Images sind wie **Schablonen** — du kannst aus einem Image beliebig viele Container erstellen, und jeder Container ist identisch.
+
+      **Überraschender Fakt:** Das Alpine-Linux-Image ist nur **5 MB** groß! Ein komplettes Betriebssystem kleiner als ein Foto.
+    examples:
+      - q: "Warum sind Images schreibgeschützt?"
+        a: "Damit jeder Container, der aus dem Image gestartet wird, exakt die gleiche Basis hat. Änderungen passieren nur in einer beschreibbaren Schicht des Containers."
+        labels: ["Images"]
+        rel:
+          - ["image-readonly", "Konsistenz-Garantie", "Unveränderlichkeit"]
+      - q: "Wie groß ist das Alpine-Linux-Image?"
+        a: "Nur ca. 5 MB — es enthält ein minimales Linux-System und wird häufig als Basis für schlanke Docker-Images verwendet."
+        labels: ["Images"]
+        rel:
+          - ["alpine-size", "5 MB Minimal-Linux", "Basis-Image"]
+      - q: "Kann ein Image nach dem Erstellen verändert werden?"
+        a: "Nein — Images sind unveränderlich (immutable). Für Änderungen musst du ein neues Image bauen. Container fügen eine beschreibbare Schicht darüber hinzu."
+        labels: ["Images"]
+        rel:
+          - ["image-immutable", "unveränderlich", "Container-Schicht"]
+
+  - title: "Images finden und herunterladen"
+    explanation: |
+      **Docker Hub** ist die Standard-Registry mit über 100.000 Images:
+
+      ```bash
+      # Nach Images suchen
+      docker search python
+
+      # Ein Image herunterladen
+      docker pull python:3.12
+
+      # Alle lokalen Images anzeigen
+      docker images
+      ```
+
+      **Tags** sind Versionsbezeichnungen:
+      - `python:3.12` — Python Version 3.12
+      - `python:3.12-slim` — Schlanke Variante ohne unnötige Pakete
+      - `python:3.12-alpine` — Basiert auf Alpine Linux (am kleinsten)
+      - `python:latest` — Neueste Version (⚠️ kann sich ändern!)
+
+      **Tipp:** Verwende **immer konkrete Tags** statt `latest` — sonst bekommst du bei jedem Pull möglicherweise eine andere Version!
+    examples:
+      - q: "docker pull python:3.12-slim"
+        a: "Lädt das Python 3.12 Image in der slim-Variante herunter — enthält Python ohne unnötige Pakete. Deutlich kleiner als das Standard-Image."
+        labels: ["Images"]
+        rel:
+          - ["docker-pull", "Image herunterladen", "Tag-Varianten"]
+      - q: "docker images"
+        a: "Listet alle lokal gespeicherten Images mit Repository-Name, Tag, Image-ID, Erstellungsdatum und Größe auf."
+        labels: ["Images"]
+        rel:
+          - ["docker-images-list", "lokale Images", "Übersicht"]
+      - q: "Warum sollte man nicht den Tag 'latest' verwenden?"
+        a: "Weil 'latest' sich bei jedem Pull ändern kann. In der Produktion willst du Reproduzierbarkeit — konkrete Tags wie '3.12' garantieren immer die gleiche Version."
+        labels: ["Images"]
+        rel:
+          - ["latest-vermeiden", "Reproduzierbarkeit", "Best Practice"]
+
+  - title: "Image-Layers verstehen"
+    explanation: |
+      Docker Images bestehen aus **Schichten (Layers)**. Jede Anweisung in einem Dockerfile erzeugt einen Layer:
+
+      ```
+      Layer 4: COPY app.py /app/          ← dein Code
+      Layer 3: RUN pip install flask       ← Abhängigkeiten
+      Layer 2: RUN apt-get update          ← System-Pakete
+      Layer 1: FROM python:3.12-slim       ← Basis-Image
+      ```
+
+      **Warum Layers?**
+      - **Caching:** Unveränderte Layers werden wiederverwendet
+      - **Sharing:** Mehrere Images können gleiche Basis-Layers teilen
+      - **Effizienz:** Beim Rebuild wird nur ab dem geänderten Layer neu gebaut
+
+      Wenn du nur `app.py` änderst, muss Docker nur Layer 4 neu bauen — Layer 1–3 kommen aus dem Cache!
+    examples:
+      - q: "docker history nginx"
+        a: "Zeigt alle Layers des nginx-Images mit Größe, Erstellungszeitpunkt und dem Befehl, der jeden Layer erzeugt hat."
+        labels: ["Layers"]
+        rel:
+          - ["docker-history", "Layer-Übersicht", "Image-Inspektion"]
+      - q: "Warum ist die Reihenfolge der Anweisungen im Dockerfile wichtig?"
+        a: "Wegen Layer-Caching: Anweisungen die sich selten ändern (z.B. apt-get install) sollten oben stehen, häufig geänderte (z.B. COPY Code) unten — so wird der Cache optimal genutzt."
+        labels: ["Layers"]
+        rel:
+          - ["layer-reihenfolge", "Cache-Optimierung", "Build-Performance"]
+      - q: "Was passiert, wenn zwei Images die gleiche Basis verwenden?"
+        a: "Die gemeinsamen Layers werden nur einmal auf der Festplatte gespeichert — Docker teilt sie automatisch. Das spart erheblich Speicherplatz."
+        labels: ["Layers"]
+        rel:
+          - ["layer-sharing", "Speicher-Effizienz", "Gemeinsame Basis"]
+
+  - title: "Images aufräumen"
+    explanation: |
+      Images sammeln sich schnell an. So räumst du auf:
+
+      ```bash
+      # Ein bestimmtes Image löschen
+      docker rmi python:3.12
+
+      # Alle ungenutzten Images entfernen
+      docker image prune
+
+      # ALLES aufräumen (Images, Container, Netzwerke)
+      docker system prune
+
+      # Speicherverbrauch anzeigen
+      docker system df
+      ```
+
+      **Achtung:** `docker system prune` löscht alles, was nicht von einem laufenden Container verwendet wird! Nutze es mit Bedacht.
+    examples:
+      - q: "docker rmi python:3.12"
+        a: "Löscht das Image python:3.12 von deinem System. Schlägt fehl, wenn noch Container davon existieren — dann erst Container entfernen."
+        labels: ["Aufräumen"]
+        rel:
+          - ["docker-rmi", "Image löschen", "Speicher freigeben"]
+      - q: "docker system df"
+        a: "Zeigt den Speicherverbrauch von Docker: wie viel Platz Images, Container, Volumes und Build-Cache belegen."
+        labels: ["Aufräumen"]
+        rel:
+          - ["docker-system-df", "Speicherübersicht", "Diagnose"]
+      - q: "Was sind 'dangling images'?"
+        a: "Images ohne Tag (angezeigt als <none>:<none>) — entstehen beim Neu-Bauen von Images, wenn das alte Image keinen Tag mehr hat. Können mit 'docker image prune' entfernt werden."
+        labels: ["Aufräumen"]
+        rel:
+          - ["dangling-images", "verwaiste Images", "Cleanup"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Docker Images!
+    examples:
+      - q: "Mit welchem Befehl lädst du ein Image herunter?"
+        type: input
+        a:
+          - "docker pull"
+      - q: "Was ist der Vorteil von Image-Layers?"
+        type: select
+        options:
+          - text: "Caching — nur geänderte Layers werden neu gebaut"
+            correct: true
+          - text: "Layers machen Images größer"
+          - text: "Jeder Layer ist ein eigener Container"
+          - text: "Layers existieren nur auf Docker Hub"
+      - q: "Welche Aussagen über Image-Tags sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "'latest' kann sich bei jedem Pull ändern"
+            correct: true
+          - text: "'slim' ist eine kleinere Variante ohne unnötige Pakete"
+            correct: true
+          - text: "Tags sind optional und nicht wichtig"
+          - text: "'alpine' basiert auf einem minimalen Linux-System"
+            correct: true
+      - q: "Was macht docker system prune?"
+        type: select
+        options:
+          - text: "Entfernt alle ungenutzten Images, Container und Netzwerke"
+            correct: true
+          - text: "Löscht nur gestoppte Container"
+          - text: "Entfernt alle laufenden Container"
+          - text: "Setzt Docker auf Werkseinstellungen zurück"

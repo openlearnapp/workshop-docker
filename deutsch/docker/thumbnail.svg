@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a3a5c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d6efd;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="800" fill="url(#bg)" rx="20"/>
+  <!-- Container-Symbol -->
+  <g transform="translate(540, 180)">
+    <!-- Wal-Körper -->
+    <ellipse cx="100" cy="120" rx="90" ry="55" fill="#fff" opacity="0.95"/>
+    <circle cx="60" cy="108" r="5" fill="#1a3a5c"/>
+    <!-- Container-Blöcke auf dem Wal -->
+    <rect x="30" y="55" width="30" height="25" rx="3" fill="#00bcd4" opacity="0.9"/>
+    <rect x="65" y="55" width="30" height="25" rx="3" fill="#26c6da" opacity="0.9"/>
+    <rect x="100" y="55" width="30" height="25" rx="3" fill="#4dd0e1" opacity="0.9"/>
+    <rect x="135" y="55" width="30" height="25" rx="3" fill="#00acc1" opacity="0.9"/>
+    <rect x="47" y="25" width="30" height="25" rx="3" fill="#80deea" opacity="0.9"/>
+    <rect x="82" y="25" width="30" height="25" rx="3" fill="#00bcd4" opacity="0.9"/>
+    <rect x="117" y="25" width="30" height="25" rx="3" fill="#26c6da" opacity="0.9"/>
+    <!-- Wasser -->
+    <path d="M-40 140 Q0 130 40 140 Q80 150 120 140 Q160 130 200 140 Q240 150 280 140" stroke="#fff" stroke-width="3" fill="none" opacity="0.4"/>
+  </g>
+  <!-- Titel -->
+  <text x="640" y="450" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">Docker &amp; Docker Compose</text>
+  <text x="640" y="510" font-family="Arial, Helvetica, sans-serif" font-size="32" fill="#b3d9ff" text-anchor="middle">Container-Technologie meistern</text>
+  <!-- Footer -->
+  <text x="640" y="700" font-family="Arial, Helvetica, sans-serif" font-size="24" fill="#ffffff" text-anchor="middle" opacity="0.7">12 Lektionen · Open Learn</text>
+  <!-- Deko-Elemente -->
+  <rect x="80" y="620" width="50" height="50" rx="8" fill="#00bcd4" opacity="0.3"/>
+  <rect x="1150" y="620" width="50" height="50" rx="8" fill="#00bcd4" opacity="0.3"/>
+  <rect x="150" y="640" width="35" height="35" rx="5" fill="#26c6da" opacity="0.2"/>
+  <rect x="1095" y="640" width="35" height="35" rx="5" fill="#26c6da" opacity="0.2"/>
+</svg>

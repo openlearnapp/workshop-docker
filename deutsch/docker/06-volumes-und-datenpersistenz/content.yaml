@@ -1,0 +1,179 @@
+version: 2
+number: 6
+title: "Volumes & Datenpersistenz"
+description: "Daten in Docker persistent speichern mit Volumes und Bind Mounts."
+sections:
+  - title: "Warum Volumes?"
+    explanation: |
+      Container sind **vergänglich** (ephemeral) — wenn ein Container gelöscht wird, sind **alle Daten darin weg**!
+
+      Stell dir vor, du betreibst eine Datenbank in einem Container. Du machst ein Update, entfernst den alten Container und startest einen neuen — **alle Daten wären verloren**.
+
+      **Volumes** lösen dieses Problem: Sie speichern Daten **außerhalb des Containers** auf dem Host-System. Selbst wenn der Container gelöscht wird, bleiben die Daten erhalten.
+
+      Es gibt zwei Hauptarten:
+      1. **Named Volumes** — Von Docker verwaltet (empfohlen)
+      2. **Bind Mounts** — Verknüpfung mit einem Host-Ordner
+    examples:
+      - q: "Was passiert mit Daten im Container, wenn er gelöscht wird?"
+        a: "Sie sind unwiderruflich verloren! Die beschreibbare Schicht des Containers wird komplett entfernt. Nur Daten in Volumes überleben."
+        labels: ["Volumes"]
+        rel:
+          - ["container-ephemeral", "Daten verloren bei rm", "Motivation für Volumes"]
+      - q: "Was ist der Unterschied zwischen Named Volume und Bind Mount?"
+        a: "Named Volumes werden von Docker verwaltet (Speicherort bestimmt Docker). Bind Mounts verknüpfen einen bestimmten Host-Pfad direkt — du bestimmst wo."
+        labels: ["Volumes"]
+        rel:
+          - ["volume-vs-bind", "Docker-verwaltet vs. Host-Pfad", "Persistenz-Typen"]
+      - q: "Warum sind Named Volumes die empfohlene Methode?"
+        a: "Sie sind portabel (funktionieren auf jedem OS gleich), werden von Docker verwaltet, können einfach gesichert werden und haben bessere Performance unter macOS/Windows."
+        labels: ["Volumes"]
+        rel:
+          - ["named-volume-vorteil", "portabel + performant", "Best Practice"]
+
+  - title: "Named Volumes"
+    explanation: |
+      Named Volumes sind der **empfohlene Weg** für Datenpersistenz:
+
+      ```bash
+      # Volume erstellen
+      docker volume create meine-daten
+
+      # Container mit Volume starten
+      docker run -d --name db -v meine-daten:/var/lib/postgresql/data postgres:16
+
+      # Volumes auflisten
+      docker volume ls
+
+      # Volume inspizieren
+      docker volume inspect meine-daten
+      ```
+
+      Der Pfad nach dem Doppelpunkt (`:/var/lib/postgresql/data`) ist der **Mount-Point im Container** — dort wird das Volume eingehängt.
+
+      **Experiment:** Lösche den Container, erstelle einen neuen mit dem gleichen Volume — die Daten sind noch da!
+    examples:
+      - q: "docker run -d -v meine-daten:/var/lib/postgresql/data postgres:16"
+        a: "Startet einen PostgreSQL-Container und mountet das Named Volume 'meine-daten' ins Datenverzeichnis. Die DB-Daten überleben Container-Neustarts."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-mount-postgres", "Datenbank-Persistenz", "Named Volume"]
+      - q: "docker volume inspect meine-daten"
+        a: "Zeigt Details zum Volume: Erstellungsdatum, Treiber, Mount-Point auf dem Host-System und Labels."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-inspect", "Volume-Details", "Diagnose"]
+      - q: "Was passiert, wenn das Volume beim docker run noch nicht existiert?"
+        a: "Docker erstellt es automatisch! Das explizite 'docker volume create' ist optional, aber empfohlen für bessere Übersicht."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-auto-create", "automatische Erstellung", "Komfort"]
+
+  - title: "Bind Mounts"
+    explanation: |
+      Bind Mounts verknüpfen einen **konkreten Host-Ordner** mit einem Container-Ordner:
+
+      ```bash
+      # Aktuellen Ordner als Bind Mount
+      docker run -d -v $(pwd)/html:/usr/share/nginx/html nginx
+
+      # Schreibgeschützter Bind Mount
+      docker run -d -v $(pwd)/config:/app/config:ro nginx
+      ```
+
+      **Perfekt für Entwicklung:** Ändere Dateien auf deinem Host → Änderungen sind sofort im Container sichtbar (und umgekehrt).
+
+      **Achtung:** Bind Mounts haben Risiken:
+      - Der Container kann Host-Dateien überschreiben
+      - Performance-Probleme auf macOS/Windows
+      - Nicht portabel (Pfade sind OS-abhängig)
+    examples:
+      - q: "docker run -v $(pwd):/app -w /app node:20 npm start"
+        a: "Mountet das aktuelle Verzeichnis nach /app im Container, setzt es als Arbeitsverzeichnis und startet npm. Perfekt für lokale Entwicklung — Code-Änderungen wirken sofort."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-dev", "Live-Reload", "Entwicklungs-Setup"]
+      - q: "Was bedeutet :ro am Ende eines Volume-Mounts?"
+        a: "Read-only — der Container kann die Dateien nur lesen, nicht verändern. Nützlich für Konfigurationsdateien, die nicht geändert werden sollen."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["mount-readonly", "Schreibschutz", "Sicherheit"]
+      - q: "Warum sind Bind Mounts auf macOS langsamer als auf Linux?"
+        a: "Weil Docker auf macOS in einer Linux-VM läuft. Dateien müssen zwischen macOS-Dateisystem und VM synchronisiert werden — das kostet Performance."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-macos", "VM-Overhead", "Performance-Einschränkung"]
+
+  - title: "Volumes aufräumen"
+    explanation: |
+      Volumes bleiben bestehen, auch wenn kein Container sie nutzt:
+
+      ```bash
+      # Bestimmtes Volume löschen
+      docker volume rm meine-daten
+
+      # Alle ungenutzten Volumes entfernen
+      docker volume prune
+
+      # Speicherverbrauch von Volumes anzeigen
+      docker system df
+      ```
+
+      **Vorsicht:** `docker volume prune` löscht alle Volumes, die nicht von einem Container genutzt werden — prüfe vorher mit `docker volume ls`, was gelöscht wird!
+
+      **Tipp für Backups:**
+      ```bash
+      docker run --rm -v meine-daten:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data
+      ```
+    examples:
+      - q: "docker volume prune"
+        a: "Entfernt alle Volumes, die von keinem Container (auch nicht gestoppten!) verwendet werden. Fragt vorher nach Bestätigung."
+        labels: ["Aufräumen"]
+        rel:
+          - ["volume-prune", "ungenutzte Volumes löschen", "Speicher freigeben"]
+      - q: "Wie erstellt man ein Backup eines Volumes?"
+        a: "Einen temporären Container starten, der das Volume und einen Host-Ordner mountet, dann die Daten mit tar komprimieren: docker run --rm -v daten:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data"
+        labels: ["Aufräumen"]
+        rel:
+          - ["volume-backup", "tar + temporärer Container", "Datensicherung"]
+      - q: "Kann man ein gelöschtes Volume wiederherstellen?"
+        a: "Nein — wenn ein Volume gelöscht wird, sind die Daten unwiderruflich weg. Deshalb sind regelmäßige Backups wichtig!"
+        labels: ["Aufräumen"]
+        rel:
+          - ["volume-delete-permanent", "kein Undo", "Backup-Wichtigkeit"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Volumes!
+    examples:
+      - q: "Mit welchem Flag mountest du ein Volume beim docker run?"
+        type: input
+        a:
+          - "-v"
+          - "--volume"
+      - q: "Welcher Volume-Typ wird für die Produktion empfohlen?"
+        type: select
+        options:
+          - text: "Named Volumes"
+            correct: true
+          - text: "Bind Mounts"
+          - text: "tmpfs Mounts"
+          - text: "Kein Volume — Daten im Container speichern"
+      - q: "Welche Aussagen über Bind Mounts sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Perfekt für lokale Entwicklung"
+            correct: true
+          - text: "Container kann Host-Dateien überschreiben"
+            correct: true
+          - text: "Performance ist auf allen OS gleich"
+          - text: ":ro macht den Mount schreibgeschützt"
+            correct: true
+      - q: "Was passiert mit Volume-Daten, wenn der Container gelöscht wird?"
+        type: select
+        options:
+          - text: "Daten bleiben erhalten"
+            correct: true
+          - text: "Daten werden gelöscht"
+          - text: "Daten werden komprimiert"
+          - text: "Daten werden auf Docker Hub hochgeladen"

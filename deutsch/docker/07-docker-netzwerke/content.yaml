@@ -1,0 +1,182 @@
+version: 2
+number: 7
+title: "Docker Netzwerke"
+description: "Container miteinander verbinden und Netzwerk-Grundlagen verstehen."
+sections:
+  - title: "Netzwerk-Grundlagen"
+    explanation: |
+      Docker erstellt ein eigenes **virtuelles Netzwerk** für Container. Standardmäßig gibt es drei Netzwerke:
+
+      ```bash
+      docker network ls
+      ```
+
+      | Netzwerk | Typ | Beschreibung |
+      |---|---|---|
+      | `bridge` | Bridge | Standard für Container (isoliert) |
+      | `host` | Host | Container nutzt Host-Netzwerk direkt |
+      | `none` | None | Kein Netzwerk — komplett isoliert |
+
+      Im **bridge**-Netzwerk kann jeder Container ins Internet, aber Container können sich **nicht über Namen** finden — dafür braucht man ein eigenes Netzwerk.
+    examples:
+      - q: "docker network ls"
+        a: "Listet alle Docker-Netzwerke auf: bridge, host und none sind immer vorhanden, plus alle selbst erstellten Netzwerke."
+        labels: ["Netzwerk"]
+        rel:
+          - ["network-ls", "Netzwerk-Übersicht", "Standard-Netzwerke"]
+      - q: "Was ist das bridge-Netzwerk?"
+        a: "Das Standard-Netzwerk für Container. Container darin können ins Internet, aber sich nicht gegenseitig über Namen erreichen — nur über IP-Adressen."
+        labels: ["Netzwerk"]
+        rel:
+          - ["bridge-network", "Standard-Netzwerk", "isoliert"]
+      - q: "Wann nutzt man das host-Netzwerk?"
+        a: "Wenn maximale Netzwerk-Performance nötig ist — der Container teilt sich den Netzwerk-Stack mit dem Host. Kein Port-Mapping nötig, aber auch keine Netzwerk-Isolation."
+        labels: ["Netzwerk"]
+        rel:
+          - ["host-network", "maximale Performance", "keine Isolation"]
+
+  - title: "Eigene Netzwerke erstellen"
+    explanation: |
+      Eigene Netzwerke sind der Schlüssel für **Container-Kommunikation**:
+
+      ```bash
+      # Netzwerk erstellen
+      docker network create mein-netz
+
+      # Container ins Netzwerk starten
+      docker run -d --name web --network mein-netz nginx
+      docker run -d --name db --network mein-netz postgres:16
+      ```
+
+      **Der große Vorteil:** In einem eigenen Netzwerk können Container sich **über ihren Namen erreichen**! Der `web`-Container kann `db` als Hostnamen nutzen:
+
+      ```
+      postgresql://user:pass@db:5432/mydb
+      ```
+
+      Docker hat einen eingebauten **DNS-Server**, der Container-Namen in IP-Adressen auflöst.
+    examples:
+      - q: "docker network create mein-netz"
+        a: "Erstellt ein neues benutzerdefiniertes Bridge-Netzwerk. Container darin können sich über ihren Namen finden — dank Docker's eingebautem DNS."
+        labels: ["Netzwerk"]
+        rel:
+          - ["network-create", "eigenes Netzwerk", "DNS-Auflösung"]
+      - q: "Warum funktioniert Container-Name als Hostname nur in eigenen Netzwerken?"
+        a: "Das Standard-bridge-Netzwerk hat aus Legacy-Gründen keinen DNS-Service. Benutzerdefinierte Netzwerke aktivieren den Docker-internen DNS automatisch."
+        labels: ["Netzwerk"]
+        rel:
+          - ["custom-network-dns", "DNS nur in eigenen Netzwerken", "Legacy-bridge"]
+      - q: "docker network connect mein-netz bestehender-container"
+        a: "Verbindet einen bereits laufenden Container mit einem Netzwerk — ohne ihn neuzustarten. Ein Container kann in mehreren Netzwerken gleichzeitig sein."
+        labels: ["Netzwerk"]
+        rel:
+          - ["network-connect", "nachträgliche Verbindung", "Multi-Netzwerk"]
+
+  - title: "Container-Kommunikation"
+    explanation: |
+      Ein praktisches Beispiel — **Web-App + Datenbank**:
+
+      ```bash
+      # Netzwerk erstellen
+      docker network create app-netz
+
+      # PostgreSQL starten
+      docker run -d --name postgres \
+        --network app-netz \
+        -e POSTGRES_PASSWORD=geheim \
+        postgres:16
+
+      # App starten, die auf postgres zugreift
+      docker run -d --name app \
+        --network app-netz \
+        -e DATABASE_URL=postgresql://postgres:geheim@postgres:5432/postgres \
+        -p 3000:3000 \
+        meine-app
+      ```
+
+      Beachte: `@postgres:5432` — der Hostname ist der **Container-Name**! Kein Port-Publishing nötig für die interne Kommunikation.
+    examples:
+      - q: "Braucht man -p für die Kommunikation zwischen Containern im gleichen Netzwerk?"
+        a: "Nein! -p (Port-Mapping) ist nur für den Zugriff von außen (Host → Container). Container im gleichen Netzwerk erreichen sich direkt über alle Ports."
+        labels: ["Kommunikation"]
+        rel:
+          - ["internal-ports", "kein Port-Mapping intern", "Container-zu-Container"]
+      - q: "Was passiert, wenn zwei Container in verschiedenen Netzwerken sind?"
+        a: "Sie können nicht miteinander kommunizieren — Netzwerke sind isoliert. Du müsstest einen Container in beide Netzwerke hängen oder sie im gleichen Netzwerk betreiben."
+        labels: ["Kommunikation"]
+        rel:
+          - ["network-isolation", "Netzwerk-Trennung", "Sicherheit"]
+      - q: "Warum nutzt man Container-Namen statt IP-Adressen?"
+        a: "Container-IPs können sich ändern (z.B. bei Neustart). Der Name bleibt stabil und wird vom Docker-DNS automatisch zur aktuellen IP aufgelöst."
+        labels: ["Kommunikation"]
+        rel:
+          - ["dns-vs-ip", "stabile Namen", "DNS-Auflösung"]
+
+  - title: "Netzwerke inspizieren und aufräumen"
+    explanation: |
+      Netzwerke debuggen und aufräumen:
+
+      ```bash
+      # Netzwerk-Details anzeigen (inkl. verbundene Container)
+      docker network inspect mein-netz
+
+      # Container aus Netzwerk entfernen
+      docker network disconnect mein-netz web
+
+      # Netzwerk löschen (nur wenn keine Container verbunden)
+      docker network rm mein-netz
+
+      # Alle ungenutzten Netzwerke entfernen
+      docker network prune
+      ```
+
+      **Tipp:** `docker network inspect` zeigt dir die **IP-Adressen aller Container** im Netzwerk — perfekt zum Debuggen von Verbindungsproblemen.
+    examples:
+      - q: "docker network inspect mein-netz"
+        a: "Zeigt alle Details: Subnetz, Gateway, verbundene Container mit ihren IP-Adressen und Netzwerk-Konfiguration."
+        labels: ["Diagnose"]
+        rel:
+          - ["network-inspect", "Container-IPs sehen", "Netzwerk-Diagnose"]
+      - q: "docker network prune"
+        a: "Entfernt alle Netzwerke, die von keinem Container genutzt werden. Die Standard-Netzwerke (bridge, host, none) bleiben immer erhalten."
+        labels: ["Diagnose"]
+        rel:
+          - ["network-prune", "ungenutzte Netzwerke", "Aufräumen"]
+      - q: "Wie testet man die Verbindung zwischen zwei Containern?"
+        a: "Mit 'docker exec web ping db' oder 'docker exec web curl http://db:80'. Wenn der Container kein ping hat, nutze einen Debug-Container: docker run --rm --network mein-netz alpine ping db"
+        labels: ["Diagnose"]
+        rel:
+          - ["network-debug", "Verbindungstest", "ping/curl"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Docker-Netzwerke!
+    examples:
+      - q: "Welchen Befehl nutzt du, um ein neues Docker-Netzwerk zu erstellen?"
+        type: input
+        a:
+          - "docker network create"
+      - q: "Warum erstellt man ein eigenes Netzwerk statt das Standard-Bridge zu nutzen?"
+        type: select
+        options:
+          - text: "Weil eigene Netzwerke DNS-Auflösung über Container-Namen bieten"
+            correct: true
+          - text: "Weil das Standard-Bridge-Netzwerk langsamer ist"
+          - text: "Weil Container im Standard-Bridge kein Internet haben"
+          - text: "Weil das Standard-Bridge automatisch gelöscht wird"
+      - q: "Welche Aussagen über Docker-Netzwerke sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Container im gleichen Netzwerk brauchen kein Port-Mapping"
+            correct: true
+          - text: "Container-Namen dienen als Hostnamen im eigenen Netzwerk"
+            correct: true
+          - text: "Docker hat einen eingebauten DNS-Server"
+            correct: true
+          - text: "Container in verschiedenen Netzwerken können frei kommunizieren"
+      - q: "Wie sieht die Verbindungs-URL zu einem PostgreSQL-Container namens 'db' aus?"
+        type: input
+        a:
+          - "postgresql://user:pass@db:5432"
+          - "postgres://user:pass@db:5432"
+          - "db:5432"

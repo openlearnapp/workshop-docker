@@ -1,0 +1,154 @@
+version: 2
+number: 1
+title: "Was ist Docker?"
+description: "Einführung in Container-Technologie und warum Docker die Softwareentwicklung revolutioniert hat."
+sections:
+  - title: "Das Problem ohne Container"
+    explanation: |
+      Stell dir vor, du entwickelst eine App auf deinem Laptop. Alles funktioniert perfekt. Dann gibst du sie einem Kollegen — und **nichts läuft mehr**. Andere Python-Version, fehlende Bibliotheken, falsches Betriebssystem.
+
+      Dieses Problem heißt **"Works on my machine"** und ist einer der häufigsten Frustrationen in der Softwareentwicklung.
+
+      **Docker löst genau dieses Problem.** Es verpackt deine Anwendung zusammen mit allem, was sie braucht, in einen **Container** — eine Art tragbare, isolierte Umgebung.
+    examples:
+      - q: "Was ist das 'Works on my machine'-Problem?"
+        a: "Die Anwendung funktioniert auf dem Entwickler-Rechner, aber nicht auf anderen Systemen wegen unterschiedlicher Abhängigkeiten oder Konfigurationen."
+        labels: ["Grundlagen"]
+        rel:
+          - ["works-on-my-machine", "klassisches Deployment-Problem", "Motivation für Container"]
+      - q: "Was verpackt Docker in einen Container?"
+        a: "Die Anwendung plus alle Abhängigkeiten (Bibliotheken, Runtime, Konfiguration) — alles, was zum Ausführen nötig ist."
+        labels: ["Grundlagen"]
+        rel:
+          - ["container-inhalt", "App + Abhängigkeiten", "Docker-Container"]
+      - q: "Warum ist 'Es läuft bei mir' kein hilfreicher Satz im Team?"
+        a: "Weil die Umgebung auf jedem Rechner anders sein kann — Docker sorgt dafür, dass die Umgebung überall identisch ist."
+        labels: ["Grundlagen"]
+        rel:
+          - ["umgebung-konsistenz", "identische Umgebungen", "Docker-Vorteil"]
+
+  - title: "Container vs. Virtuelle Maschinen"
+    explanation: |
+      Du denkst vielleicht: *"Gibt es nicht schon VMs dafür?"* — Ja, aber Container sind **viel leichter**.
+
+      | Eigenschaft | VM | Container |
+      |---|---|---|
+      | Startzeit | Minuten | Sekunden |
+      | Größe | Gigabytes | Megabytes |
+      | OS | Eigenes Gast-OS | Teilt Host-Kernel |
+      | Isolation | Vollständig | Prozess-Level |
+      | Ressourcen | Schwer | Leicht |
+
+      Eine VM emuliert eine komplette Maschine mit eigenem Betriebssystem. Ein Container **teilt den Kernel des Hosts** und isoliert nur die Anwendung. Dadurch starten Container in Sekunden statt Minuten.
+    examples:
+      - q: "Warum starten Container schneller als VMs?"
+        a: "Container teilen den Kernel des Host-Betriebssystems und müssen kein eigenes OS hochfahren — nur die Anwendung wird gestartet."
+        labels: ["Grundlagen"]
+        rel:
+          - ["container-vs-vm-start", "Kernel-Sharing", "Performance-Vorteil"]
+      - q: "Wie viel Speicher braucht ein typischer Container im Vergleich zu einer VM?"
+        a: "Container brauchen meist nur Megabytes, VMs oft mehrere Gigabytes, weil sie ein komplettes Gast-Betriebssystem mitbringen."
+        labels: ["Grundlagen"]
+        rel:
+          - ["container-groesse", "MB vs. GB", "Ressourcenverbrauch"]
+      - q: "Können auf einem Server mehr Container oder mehr VMs laufen?"
+        a: "Deutlich mehr Container — weil sie weniger Ressourcen verbrauchen und den Kernel teilen, passen hunderte Container auf einen Server, der nur wenige VMs tragen könnte."
+        labels: ["Grundlagen"]
+        rel:
+          - ["container-dichte", "hunderte vs. wenige", "Server-Kapazität"]
+
+  - title: "Die Docker-Architektur"
+    explanation: |
+      Docker besteht aus drei Hauptkomponenten:
+
+      1. **Docker Daemon (dockerd)** — Der Hintergrund-Service, der Container erstellt und verwaltet
+      2. **Docker CLI** — Das Kommandozeilen-Tool, mit dem du Befehle gibst
+      3. **Docker Registry** — Ein Speicherort für Images (z.B. Docker Hub)
+
+      Der Ablauf ist simpel:
+      - Du gibst einen Befehl ein (z.B. `docker run nginx`)
+      - Die CLI sendet den Befehl an den Daemon
+      - Der Daemon lädt das Image (falls nötig) von der Registry
+      - Der Daemon erstellt und startet den Container
+
+      **Fun Fact:** Docker ist nach den Hafenarbeitern benannt, die Container auf Schiffe laden — genau das macht Docker mit Software!
+    examples:
+      - q: "docker run nginx"
+        a: "Lädt das nginx-Image von Docker Hub (falls nicht vorhanden) und startet einen Container damit."
+        labels: ["Architektur"]
+        rel:
+          - ["docker-run-flow", "Image laden → Container starten", "Docker-Ablauf"]
+      - q: "Was macht der Docker Daemon?"
+        a: "Er ist der Hintergrund-Service (dockerd), der Images verwaltet, Container erstellt, startet und überwacht."
+        labels: ["Architektur"]
+        rel:
+          - ["docker-daemon", "Hintergrund-Service", "Kernkomponente"]
+      - q: "Was ist Docker Hub?"
+        a: "Die Standard-Registry von Docker — ein öffentliches Repository mit tausenden vorgefertigten Images wie nginx, postgres, node, python etc."
+        labels: ["Architektur"]
+        rel:
+          - ["docker-hub", "öffentliche Registry", "Image-Quelle"]
+
+  - title: "Wichtige Docker-Begriffe"
+    explanation: |
+      Bevor wir loslegen, hier die wichtigsten Begriffe:
+
+      - **Image:** Eine schreibgeschützte Vorlage mit allem, was eine App braucht. Wie ein Rezept.
+      - **Container:** Eine laufende Instanz eines Images. Wie das fertige Gericht nach dem Rezept.
+      - **Dockerfile:** Eine Textdatei mit Anweisungen zum Erstellen eines Images. Wie die Kochanleitung.
+      - **Registry:** Ein Speicherort für Images (z.B. Docker Hub).
+      - **Volume:** Persistenter Speicher für Container-Daten.
+      - **Layer:** Images bestehen aus Schichten — jede Anweisung im Dockerfile erstellt einen neuen Layer.
+
+      Merke: **Image = Bauplan, Container = Gebäude**. Aus einem Image kannst du beliebig viele Container erstellen.
+    examples:
+      - q: "Was ist der Unterschied zwischen Image und Container?"
+        a: "Ein Image ist die schreibgeschützte Vorlage (Bauplan), ein Container ist eine laufende Instanz davon (Gebäude). Aus einem Image können viele Container entstehen."
+        labels: ["Begriffe"]
+        rel:
+          - ["image-vs-container", "Bauplan vs. Gebäude", "Kernkonzept"]
+      - q: "Was ist ein Dockerfile?"
+        a: "Eine Textdatei mit Schritt-für-Schritt-Anweisungen, die beschreibt, wie ein Docker-Image gebaut wird."
+        labels: ["Begriffe"]
+        rel:
+          - ["dockerfile-def", "Build-Anleitung", "Image-Erstellung"]
+      - q: "Warum bestehen Images aus Layern?"
+        a: "Jede Anweisung im Dockerfile erzeugt einen Layer. Durch Caching müssen bei Änderungen nur die betroffenen Layer neu gebaut werden — das spart Zeit und Speicher."
+        labels: ["Begriffe"]
+        rel:
+          - ["image-layers", "Caching-Vorteil", "Build-Optimierung"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Docker-Grundlagen!
+    examples:
+      - q: "Wie heißt das Problem, wenn eine App beim Entwickler läuft, aber nicht auf anderen Systemen?"
+        type: input
+        a:
+          - "Works on my machine"
+          - "works on my machine"
+      - q: "Was teilen sich Container mit dem Host-System?"
+        type: select
+        options:
+          - text: "Den Kernel"
+            correct: true
+          - text: "Das komplette Betriebssystem"
+          - text: "Die Festplatte"
+          - text: "Den Arbeitsspeicher"
+      - q: "Welche Aussagen über Docker sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Container starten in Sekunden"
+            correct: true
+          - text: "Ein Image ist eine laufende Instanz"
+          - text: "Docker Hub ist eine öffentliche Registry"
+            correct: true
+          - text: "Container brauchen ein eigenes Betriebssystem"
+      - q: "Was ist die Beziehung zwischen Image und Container?"
+        type: select
+        options:
+          - text: "Image = Bauplan, Container = laufende Instanz"
+            correct: true
+          - text: "Container = Bauplan, Image = laufende Instanz"
+          - text: "Beide sind dasselbe"
+          - text: "Images existieren nur auf Docker Hub"

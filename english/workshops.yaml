@@ -1,0 +1,8 @@
+workshops:
+  - folder: docker
+    code: en-US
+    title: "Docker & Docker Compose"
+    description: "Learn container technology from scratch: Docker commands, images, Dockerfile, Compose and multi-container apps."
+    color: "210 35% 94%"
+    primaryColor: "210 70% 42%"
+    image: "docker/thumbnail.svg"

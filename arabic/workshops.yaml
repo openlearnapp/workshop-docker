@@ -1,0 +1,8 @@
+workshops:
+  - folder: docker
+    code: ar-SA
+    title: "دوكر و دوكر كومبوز"
+    description: "تعلم تقنية الحاويات من الصفر: أوامر دوكر، الصور، ملف دوكر، كومبوز وتطبيقات متعددة الحاويات."
+    color: "210 35% 94%"
+    primaryColor: "210 70% 42%"
+    image: "docker/thumbnail.svg"

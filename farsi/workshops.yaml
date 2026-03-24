@@ -1,0 +1,8 @@
+workshops:
+  - folder: docker
+    code: fa-IR
+    title: "داکر و داکر کامپوز"
+    description: "فناوری کانتینر را از پایه یاد بگیرید: دستورات داکر، ایمیج‌ها، داکرفایل، کامپوز و اپلیکیشن‌های چند کانتینری."
+    color: "210 35% 94%"
+    primaryColor: "210 70% 42%"
+    image: "docker/thumbnail.svg"

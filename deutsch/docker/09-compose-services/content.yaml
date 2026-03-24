@@ -1,0 +1,223 @@
+version: 2
+number: 9
+title: "Services in Docker Compose"
+description: "Services definieren, konfigurieren und mit Environment-Variablen steuern."
+sections:
+  - title: "Service-Konfiguration im Detail"
+    explanation: |
+      Jeder Service in Docker Compose hat viele Konfigurationsmöglichkeiten:
+
+      ```yaml
+      services:
+        api:
+          image: node:20-alpine          # Fertiges Image
+          # ODER
+          build:                          # Image selbst bauen
+            context: ./api
+            dockerfile: Dockerfile.prod
+          container_name: my-api          # Fester Container-Name
+          restart: unless-stopped         # Neustart-Policy
+          working_dir: /app               # Arbeitsverzeichnis
+          command: npm start              # Startbefehl überschreiben
+          user: "1000:1000"               # Benutzer im Container
+      ```
+
+      **restart-Policies:**
+      - `no` — Nie neustarten (Standard)
+      - `always` — Immer neustarten
+      - `on-failure` — Nur bei Fehler
+      - `unless-stopped` — Immer, außer manuell gestoppt
+    examples:
+      - q: "restart: unless-stopped"
+        a: "Der Container wird automatisch neugestartet — bei Absturz, nach Docker-Neustart, etc. Nur wenn du ihn manuell mit 'docker compose stop' stoppst, bleibt er aus."
+        labels: ["Services"]
+        rel:
+          - ["restart-policy", "Auto-Neustart", "Hochverfügbarkeit"]
+      - q: "Was ist der Unterschied zwischen image und build?"
+        a: "image: nutzt ein fertiges Image (z.B. von Docker Hub). build: baut das Image aus einem lokalen Dockerfile. Man kann beides kombinieren: build baut es, image gibt ihm einen Namen."
+        labels: ["Services"]
+        rel:
+          - ["image-vs-build", "fertig vs. selbst gebaut", "Service-Quellen"]
+      - q: "Wann nutzt man container_name?"
+        a: "Wenn du einen festen Namen brauchst (z.B. für externe Referenzen). Normalerweise vergibt Compose den Namen automatisch als <projekt>-<service>-<nummer>."
+        labels: ["Services"]
+        rel:
+          - ["container-name", "fester vs. automatischer Name", "Compose-Namensgebung"]
+
+  - title: "Environment-Variablen"
+    explanation: |
+      Es gibt mehrere Wege, Umgebungsvariablen zu setzen:
+
+      **1. Direkt in der YAML:**
+      ```yaml
+      services:
+        api:
+          environment:
+            - NODE_ENV=production
+            - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+      ```
+
+      **2. Als Key-Value Map:**
+      ```yaml
+      services:
+        api:
+          environment:
+            NODE_ENV: production
+            DATABASE_URL: postgresql://user:pass@db:5432/mydb
+      ```
+
+      **3. Aus einer .env-Datei:**
+      ```yaml
+      services:
+        api:
+          env_file:
+            - .env
+            - .env.local
+      ```
+
+      **Tipp:** Nutze `.env`-Dateien für Secrets und füge sie zu `.gitignore` hinzu!
+    examples:
+      - q: "env_file: .env"
+        a: "Lädt alle Variablen aus der Datei .env im Projektordner. Format der Datei: KEY=VALUE, eine Variable pro Zeile. Perfekt für Secrets."
+        labels: ["Environment"]
+        rel:
+          - ["env-file", "externe Variablen", "Secret-Management"]
+      - q: "Kann man environment und env_file kombinieren?"
+        a: "Ja! Variablen aus 'environment' überschreiben gleichnamige aus 'env_file'. So kannst du Standard-Werte in der .env-Datei haben und einzelne in der YAML überschreiben."
+        labels: ["Environment"]
+        rel:
+          - ["env-precedence", "Überschreiben", "Reihenfolge"]
+      - q: "Wie nutzt man Variablen aus der Host-Umgebung in docker-compose.yaml?"
+        a: "Mit ${VARIABLE}-Syntax: 'image: postgres:${PG_VERSION:-16}'. Der Wert kommt vom Host oder aus der .env-Datei im Compose-Ordner. :-16 ist ein Standardwert."
+        labels: ["Environment"]
+        rel:
+          - ["variable-substitution", "Host-Variablen", "Default-Werte"]
+
+  - title: "Healthchecks und Abhängigkeiten"
+    explanation: |
+      `depends_on` allein reicht oft nicht — der Container läuft, aber der Service darin ist noch nicht bereit. Die Lösung: **Healthchecks**:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U user"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+        api:
+          build: ./api
+          depends_on:
+            db:
+              condition: service_healthy
+      ```
+
+      Jetzt startet `api` erst, wenn PostgreSQL wirklich **bereit** ist — nicht nur wenn der Container läuft!
+    examples:
+      - q: "condition: service_healthy"
+        a: "Der Service startet erst, wenn die Healthcheck-Prüfung des abhängigen Services erfolgreich ist. Viel zuverlässiger als das einfache 'depends_on'."
+        labels: ["Healthcheck"]
+        rel:
+          - ["service-healthy", "wirklich bereit", "Readiness-Check"]
+      - q: "test: ['CMD-SHELL', 'pg_isready -U user']"
+        a: "Der Healthcheck-Befehl: pg_isready prüft, ob PostgreSQL Verbindungen annimmt. Alle 5 Sekunden wird geprüft, nach 5 Fehlversuchen gilt der Service als unhealthy."
+        labels: ["Healthcheck"]
+        rel:
+          - ["pg-isready", "PostgreSQL-Check", "Healthcheck-Befehl"]
+      - q: "Was passiert, wenn ein Healthcheck fehlschlägt?"
+        a: "Der Container wird als 'unhealthy' markiert. Services mit 'condition: service_healthy' warten weiter. Docker selbst startet den Container NICHT neu — dafür braucht man restart-Policies."
+        labels: ["Healthcheck"]
+        rel:
+          - ["healthcheck-failure", "unhealthy Status", "kein Auto-Restart"]
+
+  - title: "Profiles und Service-Gruppen"
+    explanation: |
+      Mit **Profiles** kannst du Services gruppieren und nur bestimmte starten:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          # Kein Profil = startet immer
+
+        api:
+          build: ./api
+          # Kein Profil = startet immer
+
+        db:
+          image: postgres:16
+          # Kein Profil = startet immer
+
+        adminer:
+          image: adminer
+          ports:
+            - "8081:8080"
+          profiles:
+            - debug
+
+        mailhog:
+          image: mailhog/mailhog
+          profiles:
+            - debug
+      ```
+
+      ```bash
+      # Nur Haupt-Services
+      docker compose up -d
+
+      # Mit Debug-Tools
+      docker compose --profile debug up -d
+      ```
+    examples:
+      - q: "profiles: [debug]"
+        a: "Der Service startet nur, wenn das Profil 'debug' explizit aktiviert wird. Perfekt für Tools, die nur in der Entwicklung gebraucht werden."
+        labels: ["Profiles"]
+        rel:
+          - ["compose-profiles", "optionale Services", "Entwicklungs-Tools"]
+      - q: "docker compose --profile debug up -d"
+        a: "Startet alle Services ohne Profil PLUS alle mit dem Profil 'debug'. Mehrere Profile können kombiniert werden: --profile debug --profile monitoring."
+        labels: ["Profiles"]
+        rel:
+          - ["profile-activate", "Debug-Modus", "Optionale Tools"]
+      - q: "Was ist ein guter Anwendungsfall für Profiles?"
+        a: "Entwicklungs-Tools (Adminer, Mailhog, pgAdmin) als 'debug'-Profil. Sie starten nur wenn nötig und belasten den normalen Betrieb nicht."
+        labels: ["Profiles"]
+        rel:
+          - ["profile-usecase", "Dev-Tools optional", "Saubere Trennung"]
+
+  - title: "Wissens-Check"
+    explanation: |
+      Teste dein Wissen über Compose Services!
+    examples:
+      - q: "Mit welcher Option lädt ein Service seine Umgebungsvariablen aus einer externen Datei?"
+        type: input
+        a:
+          - "env_file"
+      - q: "Was bewirkt 'restart: unless-stopped'?"
+        type: select
+        options:
+          - text: "Container wird immer neugestartet, außer er wurde manuell gestoppt"
+            correct: true
+          - text: "Container wird nie neugestartet"
+          - text: "Container stoppt automatisch nach 5 Minuten"
+          - text: "Container wird nur bei Fehlern neugestartet"
+      - q: "Welche Aussagen über Healthchecks sind korrekt?"
+        type: multiple-choice
+        options:
+          - text: "Sie prüfen, ob ein Service wirklich bereit ist"
+            correct: true
+          - text: "condition: service_healthy wartet auf den Healthcheck"
+            correct: true
+          - text: "depends_on allein prüft die Bereitschaft"
+          - text: "Healthchecks können mit interval, timeout und retries konfiguriert werden"
+            correct: true
+      - q: "Wofür sind Compose Profiles nützlich?"
+        type: select
+        options:
+          - text: "Um optionale Services nur bei Bedarf zu starten"
+            correct: true
+          - text: "Um Container schneller zu machen"
+          - text: "Um Images zu komprimieren"
+          - text: "Um Netzwerke zu verschlüsseln"
