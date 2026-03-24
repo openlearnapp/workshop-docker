@@ -1,6 +1,6 @@
 # Workshop: Docker & Docker Compose
 
-> **[Landing Page](https://openlearnapp.github.io/workshop-docker/)** · **[Start Workshop](https://open-learn.app/#/add?source=https://open-learn.app/workshop-docker/)**
+> **[Landing Page](https://open-learn.app/workshop-docker/)** · **[Start Workshop](https://open-learn.app/#/add?source=https://open-learn.app/workshop-docker/)**
 
 Vollständiger Workshop zu Docker und Docker Compose für open-learn.app.
 
