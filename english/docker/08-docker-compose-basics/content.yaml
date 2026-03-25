@@ -1,0 +1,215 @@
+version: 2
+number: 8
+title: "Docker Compose Basics"
+description: "Introduction to Docker Compose and the docker-compose.yaml syntax."
+sections:
+  - title: "Why Docker Compose?"
+    explanation: |
+      In the previous lesson, you saw how to start multiple containers manually — create a network, start containers individually, set environment variables...
+
+      With 2 containers, that's fine. With 5 or 10? **A nightmare.**
+
+      **Docker Compose** solves this: You describe your entire application in **a single YAML file** and start everything with **one command**:
+
+      ```bash
+      docker compose up
+      ```
+
+      Compose automatically creates:
+      - All containers (services)
+      - A shared network
+      - All volumes
+      - Correct startup order
+    examples:
+      - q: "What is the main advantage of Docker Compose?"
+        a: "Define an entire multi-container application in one file and start it with a single command — instead of typing dozens of docker run commands."
+        labels: ["Compose"]
+        rel:
+          - ["compose-vorteil", "declarative configuration", "one-command start"]
+      - q: "docker compose up"
+        a: "Starts all services defined in docker-compose.yaml. Automatically creates networks and volumes. Without -d it runs in the foreground with combined logs."
+        labels: ["Compose"]
+        rel:
+          - ["compose-up", "start everything", "default command"]
+      - q: "Does Docker Compose automatically create a network?"
+        a: "Yes! Compose automatically creates a network named <project-folder>_default. All services can reach each other via their service name."
+        labels: ["Compose"]
+        rel:
+          - ["compose-default-network", "automatic network", "service DNS"]
+
+  - title: "The docker-compose.yaml File"
+    explanation: |
+      Here's a complete example of a `docker-compose.yaml`:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          ports:
+            - "8080:80"
+          volumes:
+            - ./html:/usr/share/nginx/html
+          depends_on:
+            - api
+
+        api:
+          build: ./api
+          ports:
+            - "3000:3000"
+          environment:
+            - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+          depends_on:
+            - db
+
+        db:
+          image: postgres:16
+          environment:
+            POSTGRES_USER: user
+            POSTGRES_PASSWORD: pass
+            POSTGRES_DB: mydb
+          volumes:
+            - db-data:/var/lib/postgresql/data
+
+      volumes:
+        db-data:
+      ```
+
+      **Note the structure:** `services` → service name → configuration. Each service is a container.
+    examples:
+      - q: "What does 'build: ./api' mean in a service?"
+        a: "Compose builds the image from the Dockerfile in the './api' folder instead of using a ready-made image from Docker Hub. Perfect for your own applications."
+        labels: ["YAML Syntax"]
+        rel:
+          - ["compose-build", "build image locally", "custom Dockerfiles"]
+      - q: "What does depends_on do?"
+        a: "Defines the startup order: the service only starts when the named services are running. Note: It does NOT wait until the services are READY — only until they have started."
+        labels: ["YAML Syntax"]
+        rel:
+          - ["depends-on", "startup order", "no readiness check"]
+      - q: "What is the 'volumes:' block at the end of the file for?"
+        a: "It declares Named Volumes. Here 'db-data' is created as a managed volume. Without this declaration, Docker would throw an error."
+        labels: ["YAML Syntax"]
+        rel:
+          - ["compose-volumes-block", "volume declaration", "top-level"]
+
+  - title: "Compose Commands"
+    explanation: |
+      The most important Docker Compose commands:
+
+      ```bash
+      # Start all services
+      docker compose up -d
+
+      # Status of all services
+      docker compose ps
+
+      # Logs of all services
+      docker compose logs -f
+
+      # Logs of a specific service
+      docker compose logs -f api
+
+      # Stop all services
+      docker compose down
+
+      # Stop and delete volumes
+      docker compose down -v
+
+      # Rebuild images and start
+      docker compose up -d --build
+      ```
+
+      **Important:** `docker compose down -v` also deletes the **volumes** — all database data would be gone!
+    examples:
+      - q: "docker compose down"
+        a: "Stops and removes all containers, networks, and anonymous volumes. Named Volumes are preserved! The counterpart to 'docker compose up'."
+        labels: ["Commands"]
+        rel:
+          - ["compose-down", "stop everything", "cleanup"]
+      - q: "docker compose up -d --build"
+        a: "Rebuilds all images (ignores cache), then starts all services in the background. Useful after code changes."
+        labels: ["Commands"]
+        rel:
+          - ["compose-build-restart", "rebuild + start", "after changes"]
+      - q: "docker compose logs -f api"
+        a: "Shows the logs of the 'api' service continuously. Without a service name, combined logs of all services are shown."
+        labels: ["Commands"]
+        rel:
+          - ["compose-logs", "service logs", "debugging"]
+
+  - title: "Scaling a Service"
+    explanation: |
+      Docker Compose can **start a service multiple times**:
+
+      ```bash
+      # Start 3 instances of the api service
+      docker compose up -d --scale api=3
+      ```
+
+      There is an important limitation: You **cannot use fixed host ports** because multiple containers cannot occupy the same port.
+
+      Instead, use **port ranges** or let Docker assign the ports:
+
+      ```yaml
+      services:
+        api:
+          build: ./api
+          ports:
+            - "3000-3002:3000"  # Ports 3000, 3001, 3002
+      ```
+
+      In practice, you place a **reverse proxy** (like Nginx or Traefik) in front that distributes requests.
+    examples:
+      - q: "docker compose up -d --scale api=3"
+        a: "Starts 3 instances of the api service. Docker names them api-1, api-2, api-3. Useful for load balancing or parallel processing."
+        labels: ["Scaling"]
+        rel:
+          - ["compose-scale", "service instances", "horizontal scaling"]
+      - q: "Why can't you use fixed ports when scaling?"
+        a: "Because each port on the host can only be used once. With 3 instances, port 3000 cannot be opened three times — hence port ranges or dynamic assignment."
+        labels: ["Scaling"]
+        rel:
+          - ["scale-port-conflict", "port collision", "port ranges"]
+      - q: "What does a reverse proxy do in front of scaled services?"
+        a: "It distributes incoming requests to the different service instances (load balancing). Traefik can even configure this automatically via Docker labels."
+        labels: ["Scaling"]
+        rel:
+          - ["reverse-proxy-lb", "load balancing", "Traefik/Nginx"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker Compose!
+    examples:
+      - q: "What is the configuration file for Docker Compose called?"
+        type: input
+        a:
+          - "docker-compose.yaml"
+          - "docker-compose.yml"
+          - "compose.yaml"
+          - "compose.yml"
+      - q: "What does 'docker compose down -v' do?"
+        type: select
+        options:
+          - text: "Stops everything and also deletes the volumes"
+            correct: true
+          - text: "Shows the version"
+          - text: "Starts in verbose mode"
+          - text: "Only stops the volumes"
+      - q: "Which statements about Docker Compose are correct?"
+        type: multiple-choice
+        options:
+          - text: "Compose automatically creates a network for all services"
+            correct: true
+          - text: "Services can reach each other via their service name"
+            correct: true
+          - text: "depends_on waits until the service is ready"
+          - text: "--build forces rebuilding the images"
+            correct: true
+      - q: "What happens to Named Volumes with 'docker compose down' (without -v)?"
+        type: select
+        options:
+          - text: "They are preserved"
+            correct: true
+          - text: "They are deleted"
+          - text: "They are compressed"
+          - text: "They are backed up to Docker Hub"

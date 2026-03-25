@@ -1,0 +1,179 @@
+version: 2
+number: 6
+title: "Volumes & Data Persistence"
+description: "Persist data in Docker using volumes and bind mounts."
+sections:
+  - title: "Why Volumes?"
+    explanation: |
+      Containers are **ephemeral** — when a container is deleted, **all data inside is gone**!
+
+      Imagine you run a database in a container. You do an update, remove the old container, and start a new one — **all data would be lost**.
+
+      **Volumes** solve this problem: They store data **outside the container** on the host system. Even when the container is deleted, the data remains.
+
+      There are two main types:
+      1. **Named Volumes** — Managed by Docker (recommended)
+      2. **Bind Mounts** — Link to a host folder
+    examples:
+      - q: "What happens to data in a container when it is deleted?"
+        a: "It is irretrievably lost! The writable layer of the container is completely removed. Only data in volumes survives."
+        labels: ["Volumes"]
+        rel:
+          - ["container-ephemeral", "data lost on rm", "motivation for volumes"]
+      - q: "What is the difference between a Named Volume and a Bind Mount?"
+        a: "Named Volumes are managed by Docker (Docker determines the storage location). Bind Mounts link a specific host path directly — you decide where."
+        labels: ["Volumes"]
+        rel:
+          - ["volume-vs-bind", "Docker-managed vs. host path", "persistence types"]
+      - q: "Why are Named Volumes the recommended method?"
+        a: "They are portable (work the same on every OS), managed by Docker, can be easily backed up, and have better performance on macOS/Windows."
+        labels: ["Volumes"]
+        rel:
+          - ["named-volume-vorteil", "portable + performant", "best practice"]
+
+  - title: "Named Volumes"
+    explanation: |
+      Named Volumes are the **recommended way** for data persistence:
+
+      ```bash
+      # Create a volume
+      docker volume create my-data
+
+      # Start container with volume
+      docker run -d --name db -v my-data:/var/lib/postgresql/data postgres:16
+
+      # List volumes
+      docker volume ls
+
+      # Inspect a volume
+      docker volume inspect my-data
+      ```
+
+      The path after the colon (`:/var/lib/postgresql/data`) is the **mount point in the container** — that's where the volume is mounted.
+
+      **Experiment:** Delete the container, create a new one with the same volume — the data is still there!
+    examples:
+      - q: "docker run -d -v my-data:/var/lib/postgresql/data postgres:16"
+        a: "Starts a PostgreSQL container and mounts the Named Volume 'my-data' to the data directory. The DB data survives container restarts."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-mount-postgres", "database persistence", "named volume"]
+      - q: "docker volume inspect my-data"
+        a: "Shows volume details: creation date, driver, mount point on the host system, and labels."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-inspect", "volume details", "diagnostics"]
+      - q: "What happens if the volume doesn't exist yet when running docker run?"
+        a: "Docker creates it automatically! The explicit 'docker volume create' is optional but recommended for better clarity."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-auto-create", "automatic creation", "convenience"]
+
+  - title: "Bind Mounts"
+    explanation: |
+      Bind Mounts link a **specific host folder** with a container folder:
+
+      ```bash
+      # Current folder as bind mount
+      docker run -d -v $(pwd)/html:/usr/share/nginx/html nginx
+
+      # Read-only bind mount
+      docker run -d -v $(pwd)/config:/app/config:ro nginx
+      ```
+
+      **Perfect for development:** Change files on your host → changes are immediately visible in the container (and vice versa).
+
+      **Caution:** Bind Mounts have risks:
+      - The container can overwrite host files
+      - Performance issues on macOS/Windows
+      - Not portable (paths are OS-dependent)
+    examples:
+      - q: "docker run -v $(pwd):/app -w /app node:20 npm start"
+        a: "Mounts the current directory to /app in the container, sets it as the working directory, and starts npm. Perfect for local development — code changes take effect immediately."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-dev", "live reload", "development setup"]
+      - q: "What does :ro at the end of a volume mount mean?"
+        a: "Read-only — the container can only read the files, not modify them. Useful for configuration files that shouldn't be changed."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["mount-readonly", "write protection", "security"]
+      - q: "Why are bind mounts slower on macOS than on Linux?"
+        a: "Because Docker on macOS runs in a Linux VM. Files must be synchronized between the macOS file system and the VM — that costs performance."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-macos", "VM overhead", "performance limitation"]
+
+  - title: "Cleaning Up Volumes"
+    explanation: |
+      Volumes persist even when no container uses them:
+
+      ```bash
+      # Delete a specific volume
+      docker volume rm my-data
+
+      # Remove all unused volumes
+      docker volume prune
+
+      # Show volume storage usage
+      docker system df
+      ```
+
+      **Caution:** `docker volume prune` deletes all volumes not used by any container — check with `docker volume ls` first to see what will be deleted!
+
+      **Tip for backups:**
+      ```bash
+      docker run --rm -v my-data:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data
+      ```
+    examples:
+      - q: "docker volume prune"
+        a: "Removes all volumes not used by any container (including stopped ones!). Asks for confirmation first."
+        labels: ["Cleanup"]
+        rel:
+          - ["volume-prune", "delete unused volumes", "free storage"]
+      - q: "How do you create a backup of a volume?"
+        a: "Start a temporary container that mounts the volume and a host folder, then compress the data with tar: docker run --rm -v data:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data"
+        labels: ["Cleanup"]
+        rel:
+          - ["volume-backup", "tar + temporary container", "data backup"]
+      - q: "Can a deleted volume be restored?"
+        a: "No — when a volume is deleted, the data is irretrievably gone. That's why regular backups are important!"
+        labels: ["Cleanup"]
+        rel:
+          - ["volume-delete-permanent", "no undo", "backup importance"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of volumes!
+    examples:
+      - q: "What flag do you use to mount a volume with docker run?"
+        type: input
+        a:
+          - "-v"
+          - "--volume"
+      - q: "Which volume type is recommended for production?"
+        type: select
+        options:
+          - text: "Named Volumes"
+            correct: true
+          - text: "Bind Mounts"
+          - text: "tmpfs Mounts"
+          - text: "No volume — store data in the container"
+      - q: "Which statements about bind mounts are correct?"
+        type: multiple-choice
+        options:
+          - text: "Perfect for local development"
+            correct: true
+          - text: "Container can overwrite host files"
+            correct: true
+          - text: "Performance is the same on all OS"
+          - text: ":ro makes the mount read-only"
+            correct: true
+      - q: "What happens to volume data when the container is deleted?"
+        type: select
+        options:
+          - text: "Data is preserved"
+            correct: true
+          - text: "Data is deleted"
+          - text: "Data is compressed"
+          - text: "Data is uploaded to Docker Hub"

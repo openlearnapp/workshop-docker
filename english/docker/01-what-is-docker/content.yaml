@@ -1,0 +1,154 @@
+version: 2
+number: 1
+title: "What is Docker?"
+description: "Introduction to container technology and why Docker revolutionized software development."
+sections:
+  - title: "The Problem Without Containers"
+    explanation: |
+      Imagine you develop an app on your laptop. Everything works perfectly. Then you hand it to a colleague — and **nothing works anymore**. Different Python version, missing libraries, wrong operating system.
+
+      This problem is called **"Works on my machine"** and is one of the most common frustrations in software development.
+
+      **Docker solves exactly this problem.** It packages your application together with everything it needs into a **container** — a portable, isolated environment.
+    examples:
+      - q: "What is the 'Works on my machine' problem?"
+        a: "The application works on the developer's machine but not on other systems due to different dependencies or configurations."
+        labels: ["Basics"]
+        rel:
+          - ["works-on-my-machine", "classic deployment problem", "motivation for containers"]
+      - q: "What does Docker package into a container?"
+        a: "The application plus all dependencies (libraries, runtime, configuration) — everything needed to run it."
+        labels: ["Basics"]
+        rel:
+          - ["container-inhalt", "app + dependencies", "Docker container"]
+      - q: "Why is 'It works on my machine' not a helpful phrase in a team?"
+        a: "Because the environment can be different on every machine — Docker ensures the environment is identical everywhere."
+        labels: ["Basics"]
+        rel:
+          - ["umgebung-konsistenz", "identical environments", "Docker advantage"]
+
+  - title: "Containers vs. Virtual Machines"
+    explanation: |
+      You might think: *"Don't VMs already do that?"* — Yes, but containers are **much lighter**.
+
+      | Property | VM | Container |
+      |---|---|---|
+      | Startup time | Minutes | Seconds |
+      | Size | Gigabytes | Megabytes |
+      | OS | Own guest OS | Shares host kernel |
+      | Isolation | Full | Process-level |
+      | Resources | Heavy | Lightweight |
+
+      A VM emulates a complete machine with its own operating system. A container **shares the host's kernel** and only isolates the application. This means containers start in seconds instead of minutes.
+    examples:
+      - q: "Why do containers start faster than VMs?"
+        a: "Containers share the host operating system's kernel and don't need to boot their own OS — only the application is started."
+        labels: ["Basics"]
+        rel:
+          - ["container-vs-vm-start", "kernel sharing", "performance advantage"]
+      - q: "How much storage does a typical container need compared to a VM?"
+        a: "Containers usually need only megabytes, while VMs often require several gigabytes because they include a complete guest operating system."
+        labels: ["Basics"]
+        rel:
+          - ["container-groesse", "MB vs. GB", "resource consumption"]
+      - q: "Can a server run more containers or more VMs?"
+        a: "Significantly more containers — because they consume fewer resources and share the kernel, hundreds of containers fit on a server that could only support a few VMs."
+        labels: ["Basics"]
+        rel:
+          - ["container-dichte", "hundreds vs. few", "server capacity"]
+
+  - title: "The Docker Architecture"
+    explanation: |
+      Docker consists of three main components:
+
+      1. **Docker Daemon (dockerd)** — The background service that creates and manages containers
+      2. **Docker CLI** — The command-line tool you use to issue commands
+      3. **Docker Registry** — A storage location for images (e.g., Docker Hub)
+
+      The workflow is simple:
+      - You enter a command (e.g., `docker run nginx`)
+      - The CLI sends the command to the daemon
+      - The daemon downloads the image (if needed) from the registry
+      - The daemon creates and starts the container
+
+      **Fun Fact:** Docker is named after the dock workers who load containers onto ships — that's exactly what Docker does with software!
+    examples:
+      - q: "docker run nginx"
+        a: "Downloads the nginx image from Docker Hub (if not present) and starts a container with it."
+        labels: ["Architecture"]
+        rel:
+          - ["docker-run-flow", "download image → start container", "Docker workflow"]
+      - q: "What does the Docker Daemon do?"
+        a: "It is the background service (dockerd) that manages images, creates, starts, and monitors containers."
+        labels: ["Architecture"]
+        rel:
+          - ["docker-daemon", "background service", "core component"]
+      - q: "What is Docker Hub?"
+        a: "Docker's default registry — a public repository with thousands of pre-built images like nginx, postgres, node, python, etc."
+        labels: ["Architecture"]
+        rel:
+          - ["docker-hub", "public registry", "image source"]
+
+  - title: "Important Docker Terminology"
+    explanation: |
+      Before we get started, here are the most important terms:
+
+      - **Image:** A read-only template with everything an app needs. Like a recipe.
+      - **Container:** A running instance of an image. Like the finished dish made from the recipe.
+      - **Dockerfile:** A text file with instructions for building an image. Like the cooking instructions.
+      - **Registry:** A storage location for images (e.g., Docker Hub).
+      - **Volume:** Persistent storage for container data.
+      - **Layer:** Images consist of layers — each instruction in the Dockerfile creates a new layer.
+
+      Remember: **Image = Blueprint, Container = Building**. From one image, you can create as many containers as you want.
+    examples:
+      - q: "What is the difference between an image and a container?"
+        a: "An image is the read-only template (blueprint), a container is a running instance of it (building). Many containers can be created from one image."
+        labels: ["Terminology"]
+        rel:
+          - ["image-vs-container", "blueprint vs. building", "core concept"]
+      - q: "What is a Dockerfile?"
+        a: "A text file with step-by-step instructions that describes how to build a Docker image."
+        labels: ["Terminology"]
+        rel:
+          - ["dockerfile-def", "build instructions", "image creation"]
+      - q: "Why do images consist of layers?"
+        a: "Each instruction in the Dockerfile creates a layer. Through caching, only affected layers need to be rebuilt when changes are made — saving time and storage."
+        labels: ["Terminology"]
+        rel:
+          - ["image-layers", "caching advantage", "build optimization"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker basics!
+    examples:
+      - q: "What is the name of the problem when an app runs on the developer's machine but not on other systems?"
+        type: input
+        a:
+          - "Works on my machine"
+          - "works on my machine"
+      - q: "What do containers share with the host system?"
+        type: select
+        options:
+          - text: "The kernel"
+            correct: true
+          - text: "The complete operating system"
+          - text: "The hard drive"
+          - text: "The RAM"
+      - q: "Which statements about Docker are correct?"
+        type: multiple-choice
+        options:
+          - text: "Containers start in seconds"
+            correct: true
+          - text: "An image is a running instance"
+          - text: "Docker Hub is a public registry"
+            correct: true
+          - text: "Containers need their own operating system"
+      - q: "What is the relationship between image and container?"
+        type: select
+        options:
+          - text: "Image = blueprint, Container = running instance"
+            correct: true
+          - text: "Container = blueprint, Image = running instance"
+          - text: "Both are the same thing"
+          - text: "Images only exist on Docker Hub"

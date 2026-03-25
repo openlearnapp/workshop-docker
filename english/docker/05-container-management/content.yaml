@@ -1,0 +1,190 @@
+version: 2
+number: 5
+title: "Container Management"
+description: "Start, stop, inspect containers and read logs."
+sections:
+  - title: "Container Lifecycle"
+    explanation: |
+      A container goes through different states:
+
+      ```
+      Created → Running → Paused → Stopped → Removed
+      ```
+
+      The most important commands:
+
+      ```bash
+      docker create nginx         # Create (without starting)
+      docker start <container>    # Start
+      docker pause <container>    # Pause
+      docker unpause <container>  # Resume
+      docker stop <container>     # Stop (SIGTERM → SIGKILL)
+      docker kill <container>     # Immediately terminate (SIGKILL)
+      docker rm <container>       # Remove
+      ```
+
+      **Remember:** `docker run` = `docker create` + `docker start` in one step.
+    examples:
+      - q: "docker ps"
+        a: "Shows all running containers — with container ID, image, command, creation time, status, ports, and name."
+        labels: ["Container"]
+        rel:
+          - ["docker-ps", "running containers", "status overview"]
+      - q: "docker ps -a"
+        a: "Shows ALL containers — including stopped ones. Useful to see which containers still exist but aren't running."
+        labels: ["Container"]
+        rel:
+          - ["docker-ps-all", "all containers", "including stopped"]
+      - q: "What is the difference between docker stop and docker kill?"
+        a: "docker stop sends SIGTERM first (graceful shutdown) and waits 10 seconds. docker kill sends SIGKILL immediately — the container is terminated without warning."
+        labels: ["Container"]
+        rel:
+          - ["stop-vs-kill", "SIGTERM vs. SIGKILL", "graceful vs. force"]
+
+  - title: "Inspecting Containers"
+    explanation: |
+      Docker provides powerful tools to look inside containers:
+
+      ```bash
+      # Detailed information
+      docker inspect <container>
+
+      # Only specific fields (Go template)
+      docker inspect --format '{{.NetworkSettings.IPAddress}}' <container>
+
+      # Running processes in the container
+      docker top <container>
+
+      # Real-time resource usage
+      docker stats
+      ```
+
+      `docker inspect` provides **everything** — network configuration, volumes, environment variables, mount points, and more. It's your #1 diagnostic tool.
+    examples:
+      - q: "docker inspect my-web"
+        a: "Outputs a JSON response with all container details: IP address, volumes, env vars, mounts, networks, status, and configuration."
+        labels: ["Inspection"]
+        rel:
+          - ["docker-inspect", "container details", "JSON output"]
+      - q: "docker stats"
+        a: "Shows real-time resource usage of all running containers: CPU%, memory, network I/O, and disk I/O. Like 'top' for Docker."
+        labels: ["Inspection"]
+        rel:
+          - ["docker-stats", "real-time monitoring", "resource usage"]
+      - q: "docker inspect --format '{{.State.Status}}' my-web"
+        a: "Outputs only the container's status (e.g., 'running', 'exited'). Go templates allow targeted access to individual fields instead of the complete JSON output."
+        labels: ["Inspection"]
+        rel:
+          - ["inspect-format", "Go template", "targeted access"]
+
+  - title: "Logs and Debugging"
+    explanation: |
+      Container logs are essential for debugging:
+
+      ```bash
+      # Show logs
+      docker logs <container>
+
+      # Follow logs continuously
+      docker logs -f <container>
+
+      # Last 50 lines with timestamps
+      docker logs --tail 50 -t <container>
+      ```
+
+      For deeper debugging, you can **jump into the container**:
+
+      ```bash
+      # Open a shell in the running container
+      docker exec -it <container> /bin/bash
+
+      # Execute a single command
+      docker exec <container> cat /etc/hostname
+      ```
+
+      **Tip:** `-it` means **i**nteractive + **t**ty — you get a real shell session.
+    examples:
+      - q: "docker logs -f my-web"
+        a: "Shows the logs of the container 'my-web' and follows them continuously (like 'tail -f'). Exit with Ctrl+C without stopping the container."
+        labels: ["Debugging"]
+        rel:
+          - ["docker-logs-follow", "live logs", "troubleshooting"]
+      - q: "docker exec -it my-web /bin/bash"
+        a: "Opens an interactive Bash shell in the running container 'my-web'. You can navigate, check files, and run commands — like SSH into a server."
+        labels: ["Debugging"]
+        rel:
+          - ["docker-exec", "shell in container", "interactive debugging"]
+      - q: "Why does /bin/bash sometimes not work in containers?"
+        a: "Alpine-based images often don't have Bash installed — there you use /bin/sh instead. Alpine is intentionally kept minimal."
+        labels: ["Debugging"]
+        rel:
+          - ["bash-vs-sh", "Alpine has no Bash", "shell alternatives"]
+
+  - title: "Copying and Exporting Containers"
+    explanation: |
+      Sometimes you need to move files between host and container:
+
+      ```bash
+      # File from host into container
+      docker cp config.json my-web:/app/config.json
+
+      # File from container to host
+      docker cp my-web:/var/log/nginx/error.log ./error.log
+
+      # Save container as image (snapshot)
+      docker commit my-web my-web-backup:v1
+      ```
+
+      **Important:** `docker commit` is for backups/debugging, **not** for image production! Always use a Dockerfile for that.
+    examples:
+      - q: "docker cp my-web:/var/log/nginx/error.log ."
+        a: "Copies the file error.log from the container 'my-web' to the current directory on the host. Also works with stopped containers."
+        labels: ["Files"]
+        rel:
+          - ["docker-cp", "file transfer", "host ↔ container"]
+      - q: "docker commit my-web snapshot:v1"
+        a: "Creates a new image 'snapshot:v1' from the current state of the container. Contains all changes made in the container."
+        labels: ["Files"]
+        rel:
+          - ["docker-commit", "container snapshot", "save state"]
+      - q: "Why should you not use docker commit for production?"
+        a: "Because the build process is not reproducible — nobody knows what changes were made in the container. A Dockerfile documents every step and is version-controllable."
+        labels: ["Files"]
+        rel:
+          - ["commit-vs-dockerfile", "reproducibility", "best practice"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of container management!
+    examples:
+      - q: "What command do you use to open a shell in a running container?"
+        type: input
+        a:
+          - "docker exec -it"
+          - "docker exec"
+      - q: "What does docker stats show?"
+        type: select
+        options:
+          - text: "Real-time resource usage of all containers"
+            correct: true
+          - text: "Statistics from Docker Hub"
+          - text: "The number of downloaded images"
+          - text: "Network configuration"
+      - q: "Which statements about docker logs are correct?"
+        type: multiple-choice
+        options:
+          - text: "-f follows logs continuously"
+            correct: true
+          - text: "--tail 50 shows the last 50 lines"
+            correct: true
+          - text: "Logs are deleted after container stop"
+          - text: "-t adds timestamps"
+            correct: true
+      - q: "What do the flags -it mean in docker exec?"
+        type: select
+        options:
+          - text: "interactive + tty — interactive shell session"
+            correct: true
+          - text: "install + test"
+          - text: "input + trace"
+          - text: "inspect + terminal"
