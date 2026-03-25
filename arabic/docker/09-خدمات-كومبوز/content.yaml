@@ -1,0 +1,223 @@
+version: 2
+number: 9
+title: "خدمات كومبوز"
+description: "تعريف وتكوين والتحكم في الخدمات باستخدام متغيرات البيئة."
+sections:
+  - title: "تفاصيل إعدادات الخدمة"
+    explanation: |
+      كل خدمة في دوكر كومبوز لها خيارات إعدادات كثيرة:
+
+      ```yaml
+      services:
+        api:
+          image: node:20-alpine          # صورة جاهزة
+          # أو
+          build:                          # بناء الصورة
+            context: ./api
+            dockerfile: Dockerfile.prod
+          container_name: my-api          # اسم حاوية ثابت
+          restart: unless-stopped         # سياسة إعادة التشغيل
+          working_dir: /app               # مجلد العمل
+          command: npm start              # تجاوز أمر البدء
+          user: "1000:1000"               # المستخدم في الحاوية
+      ```
+
+      **سياسات إعادة التشغيل:**
+      - `no` — لا إعادة تشغيل أبداً (الافتراضي)
+      - `always` — إعادة تشغيل دائماً
+      - `on-failure` — فقط عند الخطأ
+      - `unless-stopped` — دائماً، إلا إذا تم الإيقاف يدوياً
+    examples:
+      - q: "restart: unless-stopped"
+        a: "الحاوية تُعاد تشغيلها تلقائياً — عند الانهيار، بعد إعادة تشغيل دوكر، إلخ. فقط إذا أوقفتها يدوياً بأمر 'docker compose stop' تبقى متوقفة."
+        labels: ["الخدمات"]
+        rel:
+          - ["restart-policy", "Auto-Neustart", "Hochverfügbarkeit"]
+      - q: "ما الفرق بين image و build؟"
+        a: "image: تستخدم صورة جاهزة (مثلاً من Docker Hub). build: تبني الصورة من Dockerfile محلي. يمكن الجمع بينهما: build يبنيها و image يُسمّيها."
+        labels: ["الخدمات"]
+        rel:
+          - ["image-vs-build", "fertig vs. selbst gebaut", "Service-Quellen"]
+      - q: "متى نستخدم container_name؟"
+        a: "عندما تحتاج اسماً ثابتاً (مثلاً للمراجع الخارجية). عادة يُعيّن كومبوز الاسم تلقائياً كـ <مشروع>-<خدمة>-<رقم>."
+        labels: ["الخدمات"]
+        rel:
+          - ["container-name", "fester vs. automatischer Name", "Compose-Namensgebung"]
+
+  - title: "متغيرات البيئة"
+    explanation: |
+      هناك عدة طرق لتعيين متغيرات البيئة:
+
+      **1. مباشرة في YAML:**
+      ```yaml
+      services:
+        api:
+          environment:
+            - NODE_ENV=production
+            - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+      ```
+
+      **2. كقاموس:**
+      ```yaml
+      services:
+        api:
+          environment:
+            NODE_ENV: production
+            DATABASE_URL: postgresql://user:pass@db:5432/mydb
+      ```
+
+      **3. من ملف .env:**
+      ```yaml
+      services:
+        api:
+          env_file:
+            - .env
+            - .env.local
+      ```
+
+      **نصيحة:** استخدم ملفات `.env` للأسرار وأضفها إلى `.gitignore`!
+    examples:
+      - q: "env_file: .env"
+        a: "يُحمّل جميع المتغيرات من ملف .env في مجلد المشروع. صيغة الملف: KEY=VALUE، متغير واحد في كل سطر. مثالي للأسرار."
+        labels: ["متغيرات البيئة"]
+        rel:
+          - ["env-file", "externe Variablen", "Secret-Management"]
+      - q: "هل يمكن الجمع بين environment و env_file؟"
+        a: "نعم! المتغيرات من 'environment' تتجاوز المتغيرات المتشابهة من 'env_file'. يمكنك وضع القيم الافتراضية في ملف .env وتجاوز بعضها في YAML."
+        labels: ["متغيرات البيئة"]
+        rel:
+          - ["env-precedence", "Überschreiben", "Reihenfolge"]
+      - q: "كيف تستخدم متغيرات من بيئة المضيف في docker-compose.yaml؟"
+        a: "بصيغة ${VARIABLE}: مثل 'image: postgres:${PG_VERSION:-16}'. القيمة تأتي من المضيف أو من ملف .env في مجلد كومبوز. :-16 هي قيمة افتراضية."
+        labels: ["متغيرات البيئة"]
+        rel:
+          - ["variable-substitution", "Host-Variablen", "Default-Werte"]
+
+  - title: "فحوصات الصحة والاعتماديات"
+    explanation: |
+      `depends_on` وحده غالباً لا يكفي — الحاوية تعمل لكن الخدمة فيها ليست جاهزة بعد. الحل: **فحوصات الصحة (Healthchecks)**:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U user"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+        api:
+          build: ./api
+          depends_on:
+            db:
+              condition: service_healthy
+      ```
+
+      الآن `api` يبدأ فقط عندما يكون PostgreSQL **جاهزاً فعلاً** — وليس فقط عندما تعمل الحاوية!
+    examples:
+      - q: "condition: service_healthy"
+        a: "الخدمة تبدأ فقط عندما ينجح فحص الصحة للخدمة المعتمد عليها. أكثر موثوقية بكثير من depends_on البسيط."
+        labels: ["فحص الصحة"]
+        rel:
+          - ["service-healthy", "wirklich bereit", "Readiness-Check"]
+      - q: "test: ['CMD-SHELL', 'pg_isready -U user']"
+        a: "أمر فحص الصحة: pg_isready يفحص هل PostgreSQL يقبل الاتصالات. يُفحص كل 5 ثوانٍ، بعد 5 محاولات فاشلة تُصنَّف الخدمة كغير صحية."
+        labels: ["فحص الصحة"]
+        rel:
+          - ["pg-isready", "PostgreSQL-Check", "Healthcheck-Befehl"]
+      - q: "ماذا يحدث عند فشل فحص الصحة؟"
+        a: "تُصنَّف الحاوية كـ 'unhealthy'. الخدمات التي لديها 'condition: service_healthy' تستمر بالانتظار. دوكر نفسه لا يُعيد تشغيل الحاوية — لذلك تحتاج سياسة إعادة التشغيل."
+        labels: ["فحص الصحة"]
+        rel:
+          - ["healthcheck-failure", "unhealthy Status", "kein Auto-Restart"]
+
+  - title: "ملفات التعريف ومجموعات الخدمات"
+    explanation: |
+      باستخدام **Profiles** يمكنك تجميع الخدمات وتشغيل مجموعات معينة فقط:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          # بدون ملف تعريف = تبدأ دائماً
+
+        api:
+          build: ./api
+          # بدون ملف تعريف = تبدأ دائماً
+
+        db:
+          image: postgres:16
+          # بدون ملف تعريف = تبدأ دائماً
+
+        adminer:
+          image: adminer
+          ports:
+            - "8081:8080"
+          profiles:
+            - debug
+
+        mailhog:
+          image: mailhog/mailhog
+          profiles:
+            - debug
+      ```
+
+      ```bash
+      # الخدمات الرئيسية فقط
+      docker compose up -d
+
+      # مع أدوات التصحيح
+      docker compose --profile debug up -d
+      ```
+    examples:
+      - q: "profiles: [debug]"
+        a: "الخدمة تبدأ فقط عند تفعيل ملف التعريف 'debug' صراحةً. مثالي للأدوات المطلوبة فقط في التطوير."
+        labels: ["ملفات التعريف"]
+        rel:
+          - ["compose-profiles", "optionale Services", "Entwicklungs-Tools"]
+      - q: "docker compose --profile debug up -d"
+        a: "يُشغّل جميع الخدمات بدون ملف تعريف بالإضافة إلى جميع الخدمات التي لديها ملف التعريف 'debug'. يمكن الجمع بين عدة ملفات تعريف: --profile debug --profile monitoring."
+        labels: ["ملفات التعريف"]
+        rel:
+          - ["profile-activate", "Debug-Modus", "Optionale Tools"]
+      - q: "ما هو الاستخدام الجيد لـ Profiles؟"
+        a: "أدوات التطوير (Adminer و Mailhog و pgAdmin) كملف تعريف 'debug'. تبدأ فقط عند الحاجة ولا تُثقل التشغيل العادي."
+        labels: ["ملفات التعريف"]
+        rel:
+          - ["profile-usecase", "Dev-Tools optional", "Saubere Trennung"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بخدمات كومبوز!
+    examples:
+      - q: "بأي خيار تُحمّل الخدمة متغيرات البيئة من ملف خارجي؟"
+        type: input
+        a:
+          - "env_file"
+      - q: "ماذا يفعل 'restart: unless-stopped'؟"
+        type: select
+        options:
+          - text: "الحاوية تُعاد تشغيلها دائماً، إلا إذا تم إيقافها يدوياً"
+            correct: true
+          - text: "الحاوية لا تُعاد تشغيلها أبداً"
+          - text: "الحاوية تتوقف تلقائياً بعد 5 دقائق"
+          - text: "الحاوية تُعاد تشغيلها فقط عند الأخطاء"
+      - q: "أي من العبارات التالية عن فحوصات الصحة صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "تفحص هل الخدمة جاهزة فعلاً"
+            correct: true
+          - text: "condition: service_healthy ينتظر فحص الصحة"
+            correct: true
+          - text: "depends_on وحده يفحص الجاهزية"
+          - text: "فحوصات الصحة يمكن ضبطها بـ interval و timeout و retries"
+            correct: true
+      - q: "لأي غرض تُفيد Compose Profiles؟"
+        type: select
+        options:
+          - text: "لتشغيل خدمات اختيارية عند الحاجة فقط"
+            correct: true
+          - text: "لتسريع الحاويات"
+          - text: "لضغط الصور"
+          - text: "لتشفير الشبكات"

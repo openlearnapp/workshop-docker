@@ -1,0 +1,182 @@
+version: 2
+number: 7
+title: "شبكات دوكر"
+description: "ربط الحاويات ببعضها وفهم أساسيات الشبكات."
+sections:
+  - title: "أساسيات الشبكات"
+    explanation: |
+      يُنشئ دوكر **شبكة افتراضية** خاصة للحاويات. افتراضياً يوجد ثلاث شبكات:
+
+      ```bash
+      docker network ls
+      ```
+
+      | الشبكة | النوع | الوصف |
+      |---|---|---|
+      | `bridge` | Bridge | الافتراضية للحاويات (معزولة) |
+      | `host` | Host | الحاوية تستخدم شبكة المضيف مباشرة |
+      | `none` | None | بدون شبكة — معزولة تماماً |
+
+      في شبكة **bridge** يمكن لكل حاوية الوصول للإنترنت، لكن الحاويات **لا يمكنها العثور على بعضها بالاسم** — لذلك تحتاج شبكة خاصة.
+    examples:
+      - q: "docker network ls"
+        a: "يعرض جميع شبكات دوكر: bridge و host و none موجودة دائماً، بالإضافة إلى جميع الشبكات التي أنشأتها بنفسك."
+        labels: ["الشبكات"]
+        rel:
+          - ["network-ls", "Netzwerk-Übersicht", "Standard-Netzwerke"]
+      - q: "ما هي شبكة bridge؟"
+        a: "الشبكة الافتراضية للحاويات. الحاويات فيها يمكنها الوصول للإنترنت لكنها لا تستطيع الوصول لبعضها بالاسم — فقط عبر عناوين IP."
+        labels: ["الشبكات"]
+        rel:
+          - ["bridge-network", "Standard-Netzwerk", "isoliert"]
+      - q: "متى تُستخدم شبكة host؟"
+        a: "عندما تحتاج أقصى أداء شبكي — الحاوية تتشارك مكدس الشبكة مع المضيف. لا حاجة لربط المنافذ، لكن أيضاً لا عزل شبكي."
+        labels: ["الشبكات"]
+        rel:
+          - ["host-network", "maximale Performance", "keine Isolation"]
+
+  - title: "إنشاء شبكات خاصة"
+    explanation: |
+      الشبكات الخاصة هي المفتاح لـ **تواصل الحاويات**:
+
+      ```bash
+      # إنشاء شبكة
+      docker network create mein-netz
+
+      # تشغيل حاويات في الشبكة
+      docker run -d --name web --network mein-netz nginx
+      docker run -d --name db --network mein-netz postgres:16
+      ```
+
+      **الميزة الكبرى:** في شبكة خاصة يمكن للحاويات **الوصول لبعضها بالاسم**! حاوية `web` يمكنها استخدام `db` كاسم مضيف:
+
+      ```
+      postgresql://user:pass@db:5432/mydb
+      ```
+
+      دوكر لديه **خادم DNS مدمج** يُحوّل أسماء الحاويات إلى عناوين IP.
+    examples:
+      - q: "docker network create mein-netz"
+        a: "يُنشئ شبكة Bridge مخصصة جديدة. الحاويات فيها يمكنها العثور على بعضها بالاسم — بفضل DNS المدمج في دوكر."
+        labels: ["الشبكات"]
+        rel:
+          - ["network-create", "eigenes Netzwerk", "DNS-Auflösung"]
+      - q: "لماذا يعمل اسم الحاوية كاسم مضيف فقط في الشبكات الخاصة؟"
+        a: "شبكة bridge الافتراضية ليس لديها خدمة DNS لأسباب تاريخية. الشبكات المخصصة تُفعّل DNS الداخلي لدوكر تلقائياً."
+        labels: ["الشبكات"]
+        rel:
+          - ["custom-network-dns", "DNS nur in eigenen Netzwerken", "Legacy-bridge"]
+      - q: "docker network connect mein-netz bestehender-container"
+        a: "يربط حاوية عاملة بالفعل بشبكة — دون إعادة تشغيلها. يمكن للحاوية أن تكون في عدة شبكات في نفس الوقت."
+        labels: ["الشبكات"]
+        rel:
+          - ["network-connect", "nachträgliche Verbindung", "Multi-Netzwerk"]
+
+  - title: "تواصل الحاويات"
+    explanation: |
+      مثال عملي — **تطبيق ويب + قاعدة بيانات**:
+
+      ```bash
+      # إنشاء شبكة
+      docker network create app-netz
+
+      # تشغيل PostgreSQL
+      docker run -d --name postgres \
+        --network app-netz \
+        -e POSTGRES_PASSWORD=geheim \
+        postgres:16
+
+      # تشغيل التطبيق الذي يتصل بـ postgres
+      docker run -d --name app \
+        --network app-netz \
+        -e DATABASE_URL=postgresql://postgres:geheim@postgres:5432/postgres \
+        -p 3000:3000 \
+        meine-app
+      ```
+
+      لاحظ: `@postgres:5432` — اسم المضيف هو **اسم الحاوية**! لا حاجة لنشر المنافذ للتواصل الداخلي.
+    examples:
+      - q: "هل تحتاج -p للتواصل بين الحاويات في نفس الشبكة؟"
+        a: "لا! -p (ربط المنافذ) مطلوب فقط للوصول من الخارج (المضيف ← الحاوية). الحاويات في نفس الشبكة تصل لبعضها مباشرة عبر جميع المنافذ."
+        labels: ["التواصل"]
+        rel:
+          - ["internal-ports", "kein Port-Mapping intern", "Container-zu-Container"]
+      - q: "ماذا يحدث إذا كانت حاويتان في شبكتين مختلفتين؟"
+        a: "لا يمكنهما التواصل — الشبكات معزولة. يجب ربط حاوية بكلتا الشبكتين أو تشغيلهما في نفس الشبكة."
+        labels: ["التواصل"]
+        rel:
+          - ["network-isolation", "Netzwerk-Trennung", "Sicherheit"]
+      - q: "لماذا نستخدم أسماء الحاويات بدلاً من عناوين IP؟"
+        a: "عناوين IP للحاويات يمكن أن تتغير (مثلاً عند إعادة التشغيل). الاسم يبقى ثابتاً ويُحوّله DNS الداخلي لدوكر تلقائياً إلى العنوان الحالي."
+        labels: ["التواصل"]
+        rel:
+          - ["dns-vs-ip", "stabile Namen", "DNS-Auflösung"]
+
+  - title: "فحص وتنظيف الشبكات"
+    explanation: |
+      تصحيح أخطاء وتنظيف الشبكات:
+
+      ```bash
+      # عرض تفاصيل الشبكة (بما فيها الحاويات المتصلة)
+      docker network inspect mein-netz
+
+      # فصل حاوية من الشبكة
+      docker network disconnect mein-netz web
+
+      # حذف شبكة (فقط إذا لم تكن هناك حاويات متصلة)
+      docker network rm mein-netz
+
+      # حذف جميع الشبكات غير المستخدمة
+      docker network prune
+      ```
+
+      **نصيحة:** `docker network inspect` يُظهر لك **عناوين IP لجميع الحاويات** في الشبكة — مثالي لتصحيح مشاكل الاتصال.
+    examples:
+      - q: "docker network inspect mein-netz"
+        a: "يعرض جميع التفاصيل: الشبكة الفرعية، البوابة، الحاويات المتصلة بعناوين IP الخاصة بها وإعدادات الشبكة."
+        labels: ["التشخيص"]
+        rel:
+          - ["network-inspect", "Container-IPs sehen", "Netzwerk-Diagnose"]
+      - q: "docker network prune"
+        a: "يحذف جميع الشبكات التي لا تستخدمها أي حاوية. الشبكات الافتراضية (bridge و host و none) تبقى دائماً."
+        labels: ["التشخيص"]
+        rel:
+          - ["network-prune", "ungenutzte Netzwerke", "Aufräumen"]
+      - q: "كيف تختبر الاتصال بين حاويتين؟"
+        a: "بأمر 'docker exec web ping db' أو 'docker exec web curl http://db:80'. إذا لم يكن لدى الحاوية ping، استخدم حاوية تصحيح: docker run --rm --network mein-netz alpine ping db"
+        labels: ["التشخيص"]
+        rel:
+          - ["network-debug", "Verbindungstest", "ping/curl"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بشبكات دوكر!
+    examples:
+      - q: "أي أمر تستخدمه لإنشاء شبكة دوكر جديدة؟"
+        type: input
+        a:
+          - "docker network create"
+      - q: "لماذا تُنشئ شبكة خاصة بدلاً من استخدام شبكة Bridge الافتراضية؟"
+        type: select
+        options:
+          - text: "لأن الشبكات الخاصة توفر تحليل DNS عبر أسماء الحاويات"
+            correct: true
+          - text: "لأن شبكة Bridge الافتراضية أبطأ"
+          - text: "لأن الحاويات في شبكة Bridge الافتراضية ليس لديها إنترنت"
+          - text: "لأن شبكة Bridge الافتراضية تُحذف تلقائياً"
+      - q: "أي من العبارات التالية عن شبكات دوكر صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "الحاويات في نفس الشبكة لا تحتاج ربط منافذ"
+            correct: true
+          - text: "أسماء الحاويات تعمل كأسماء مضيف في الشبكة الخاصة"
+            correct: true
+          - text: "دوكر لديه خادم DNS مدمج"
+            correct: true
+          - text: "الحاويات في شبكات مختلفة يمكنها التواصل بحرية"
+      - q: "كيف يبدو عنوان الاتصال بحاوية PostgreSQL اسمها 'db'؟"
+        type: input
+        a:
+          - "postgresql://user:pass@db:5432"
+          - "postgres://user:pass@db:5432"
+          - "db:5432"

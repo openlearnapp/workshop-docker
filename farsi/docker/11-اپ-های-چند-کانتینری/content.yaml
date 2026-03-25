@@ -1,0 +1,255 @@
+version: 2
+number: 11
+title: "اپلیکیشن‌های چند کانتینری"
+description: "ساخت و مدیریت یک اپلیکیشن کامل با چندین سرویس."
+sections:
+  - title: "معماری یک اپلیکیشن چند کانتینری"
+    explanation: |
+      یک وب‌اپلیکیشن معمولی از چندین مؤلفه تشکیل شده:
+
+      ```
+      Browser → Nginx (Reverse Proxy) → API (Node.js) → PostgreSQL
+                         ↓                    ↓
+                  Static Files            Redis (Cache)
+      ```
+
+      در داکر **هر سرویس یک کانتینر جداگانه** می‌شود:
+      - **Nginx** — Reverse Proxy، سرو فایل‌های استاتیک
+      - **API** — منطق اپلیکیشن
+      - **PostgreSQL** — پایگاه داده رابطه‌ای
+      - **Redis** — کش و نشست‌ها
+
+      اصل: **یک فرآیند در هر کانتینر**. هر کانتینر یک وظیفه دارد و می‌تواند مستقل مقیاس‌گذاری، به‌روزرسانی و اشکال‌زدایی شود.
+    examples:
+      - q: "چرا 'یک فرآیند در هر کانتینر'؟"
+        a: "ایزولاسیون بهتر، اشکال‌زدایی آسان‌تر، مقیاس‌گذاری و به‌روزرسانی مستقل. اگر API بار بیشتری دارد، فقط کانتینر API را مقیاس‌گذاری می‌کنید — نه پایگاه داده."
+        labels: ["معماری"]
+        rel:
+          - ["single-process", "ایزولاسیون + مقیاس‌گذاری", "اصل کانتینر"]
+      - q: "چرا Nginx جلوی API قرار می‌گیرد؟"
+        a: "Nginx به عنوان Reverse Proxy خاتمه SSL، کش، فشرده‌سازی، محدودسازی نرخ و سرو فایل‌های استاتیک را بر عهده می‌گیرد — API را برای منطق اصلی آزاد می‌کند."
+        labels: ["معماری"]
+        rel:
+          - ["reverse-proxy-vorteil", "SSL + کش + استاتیک", "سبک‌سازی API"]
+      - q: "چه زمانی Redis علاوه بر پایگاه داده لازم است؟"
+        a: "برای نشست‌ها، کش کردن پرس‌وجوهای متداول پایگاه داده، صف‌ها و داده‌های بلادرنگ. Redis در RAM قرار دارد و مرتبه‌ها سریع‌تر از پایگاه داده روی دیسک است."
+        labels: ["معماری"]
+        rel:
+          - ["redis-usecase", "کش + نشست‌ها", "عملکرد"]
+
+  - title: "فایل کامپوز کامل"
+    explanation: |
+      یک `docker-compose.yaml` کامل برای یک اپلیکیشن نزدیک به تولید:
+
+      ```yaml
+      services:
+        nginx:
+          image: nginx:alpine
+          ports:
+            - "80:80"
+          volumes:
+            - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - static-files:/usr/share/nginx/html:ro
+          depends_on:
+            api:
+              condition: service_healthy
+          networks:
+            - frontend
+
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile
+          environment:
+            DATABASE_URL: postgresql://app:secret@db:5432/myapp
+            REDIS_URL: redis://redis:6379
+            NODE_ENV: production
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+          depends_on:
+            db:
+              condition: service_healthy
+            redis:
+              condition: service_started
+          networks:
+            - frontend
+            - backend
+          restart: unless-stopped
+
+        db:
+          image: postgres:16-alpine
+          environment:
+            POSTGRES_USER: app
+            POSTGRES_PASSWORD: secret
+            POSTGRES_DB: myapp
+          volumes:
+            - db-data:/var/lib/postgresql/data
+            - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U app"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+          networks:
+            - backend
+          restart: unless-stopped
+
+        redis:
+          image: redis:7-alpine
+          volumes:
+            - redis-data:/data
+          networks:
+            - backend
+          restart: unless-stopped
+
+      volumes:
+        db-data:
+        redis-data:
+        static-files:
+
+      networks:
+        frontend:
+        backend:
+          internal: true
+      ```
+    examples:
+      - q: "چرا شبکه backend با 'internal: true' تنظیم شده؟"
+        a: "پایگاه داده و Redis نیازی به دسترسی به اینترنت ندارند. 'internal: true' جلوگیری می‌کند از اینکه این کانتینرها به بیرون ارتباط برقرار کنند — یک اقدام امنیتی مهم."
+        labels: ["کامپوز"]
+        rel:
+          - ["backend-internal", "بدون اینترنت برای پایگاه داده", "اقدام امنیتی"]
+      - q: "چرا سرویس API دو شبکه دارد؟"
+        a: "او پل است: در شبکه frontend درخواست‌ها از Nginx دریافت می‌کند، در شبکه backend به پایگاه داده و Redis دسترسی دارد. Nginx نمی‌تواند مستقیماً به پایگاه داده دسترسی پیدا کند."
+        labels: ["کامپوز"]
+        rel:
+          - ["api-bridge", "فرانت‌اند ↔ بک‌اند", "معماری شبکه"]
+      - q: "init.sql به عنوان Bind Mount در PostgreSQL چه کاری انجام می‌دهد؟"
+        a: "PostgreSQL همه فایل‌های SQL در /docker-entrypoint-initdb.d/ را هنگام اولین اجرا اجرا می‌کند. عالی برای ایجاد اسکیما و داده‌های اولیه."
+        labels: ["کامپوز"]
+        rel:
+          - ["pg-init-sql", "مقداردهی اولیه پایگاه داده", "اولین اجرا"]
+
+  - title: "محیط توسعه در مقابل تولید"
+    explanation: |
+      اغلب پیکربندی‌های مختلفی لازم است. داکر کامپوز از **فایل‌های Override** پشتیبانی می‌کند:
+
+      **docker-compose.yaml** (پایه):
+      ```yaml
+      services:
+        api:
+          build: ./api
+          environment:
+            NODE_ENV: production
+      ```
+
+      **docker-compose.override.yaml** (توسعه):
+      ```yaml
+      services:
+        api:
+          volumes:
+            - ./api:/app        # بارگذاری مجدد زنده
+          environment:
+            NODE_ENV: development
+            DEBUG: "true"
+          ports:
+            - "9229:9229"       # پورت اشکال‌زدا
+      ```
+
+      کامپوز فایل‌ها را به صورت خودکار ادغام می‌کند! برای تولید:
+      ```bash
+      docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+      ```
+    examples:
+      - q: "docker-compose.override.yaml چیست؟"
+        a: "فایلی که به صورت خودکار با docker-compose.yaml ادغام می‌شود — بدون فلگ اضافی. عالی برای تنظیمات توسعه محلی که نباید به تولید بروند."
+        labels: ["پیکربندی"]
+        rel:
+          - ["compose-override", "ادغام خودکار", "تنظیمات توسعه"]
+      - q: "docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d"
+        a: "با پیکربندی پایه به همراه تنظیمات تولید اجرا می‌شود. فایل دوم مقادیر فایل اول را بازنویسی/تکمیل می‌کند."
+        labels: ["پیکربندی"]
+        rel:
+          - ["compose-multi-file", "تنظیمات تولید", "ادغام صریح"]
+      - q: "چگونه جلوگیری کنیم که فایل Override در تولید بارگذاری شود؟"
+        a: "در تولید فقط فایل‌های پایه را صریحاً مشخص کنید: -f docker-compose.yaml -f docker-compose.prod.yaml. یا: فایل Override را به .gitignore اضافه کنید."
+        labels: ["پیکربندی"]
+        rel:
+          - ["override-production", "مشخص‌سازی صریح فایل", "امنیت"]
+
+  - title: "اشکال‌زدایی اپلیکیشن‌های چند کانتینری"
+    explanation: |
+      وقتی چیزی کار نمی‌کند، این استراتژی اشکال‌زدایی را دنبال کنید:
+
+      ```bash
+      # ۱. بررسی وضعیت همه سرویس‌ها
+      docker compose ps
+
+      # ۲. لاگ سرویس مشکل‌دار
+      docker compose logs api
+
+      # ۳. نگاه به داخل کانتینر
+      docker compose exec api sh
+
+      # ۴. تست اتصال شبکه
+      docker compose exec api ping db
+      docker compose exec api curl http://localhost:3000/health
+
+      # ۵. بررسی متغیرهای محیطی
+      docker compose exec api env
+
+      # ۶. بررسی پیکربندی کانتینر
+      docker compose config
+      ```
+
+      **`docker compose config`** بسیار ارزشمند است — **پیکربندی حل‌شده** را پس از ادغام همه فایل‌ها و جایگزینی متغیرها نمایش می‌دهد.
+    examples:
+      - q: "docker compose config"
+        a: "docker-compose.yaml کاملاً حل‌شده را نمایش می‌دهد — با همه Override ها، جایگزینی‌های متغیر و مقادیر پیش‌فرض. عالی برای دیدن آنچه داکر کامپوز واقعاً استفاده می‌کند."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["compose-config", "پیکربندی حل‌شده", "یافتن خطا"]
+      - q: "docker compose exec api sh"
+        a: "شل در سرویس api در حال اجرا باز می‌کند. از آنجا می‌توانید شبکه را تست، فایل‌ها را بررسی، متغیرهای محیطی را چک و فرآیندها را بررسی کنید."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["compose-exec", "شل در سرویس", "اشکال‌زدایی تعاملی"]
+      - q: "از کجا بفهمیم که یک سرویس 'healthy' نیست؟"
+        a: "در 'docker compose ps' وضعیت 'unhealthy' یا 'starting' نمایش داده می‌شود. در لاگ‌های سرویس علت را پیدا می‌کنید — اغلب اتصال ناموفق پایگاه داده یا پورت اشتباه."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["unhealthy-debug", "بررسی وضعیت", "خواندن لاگ"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره اپلیکیشن‌های چند کانتینری بسنجید!
+    examples:
+      - q: "کدام فایل به صورت خودکار با docker-compose.yaml ادغام می‌شود؟"
+        type: input
+        a:
+          - "docker-compose.override.yaml"
+          - "docker-compose.override.yml"
+      - q: "چرا یک فرآیند در هر کانتینر توصیه می‌شود؟"
+        type: select
+        options:
+          - text: "ایزولاسیون بهتر، مقیاس‌گذاری مستقل و اشکال‌زدایی آسان‌تر"
+            correct: true
+          - text: "داکر فقط یک فرآیند مجاز می‌داند"
+          - text: "کانتینرها با یک فرآیند سریع‌تر اجرا می‌شوند"
+          - text: "حافظه کمتری مصرف می‌شود"
+      - q: "کدام عبارات درباره معماری اپلیکیشن نشان‌داده‌شده صحیح هستند؟"
+        type: multiple-choice
+        options:
+          - text: "Nginx نمی‌تواند مستقیماً به پایگاه داده دسترسی پیدا کند"
+            correct: true
+          - text: "API در دو شبکه (frontend + backend) قرار دارد"
+            correct: true
+          - text: "Redis و PostgreSQL در شبکه backend بدون اینترنت هستند"
+            correct: true
+          - text: "همه سرویس‌ها یک شبکه واحد به اشتراک می‌گذارند"
+      - q: "کدام دستور پیکربندی کاملاً حل‌شده کامپوز را نمایش می‌دهد؟"
+        type: input
+        a:
+          - "docker compose config"

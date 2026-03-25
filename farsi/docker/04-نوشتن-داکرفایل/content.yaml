@@ -1,0 +1,186 @@
+version: 2
+number: 4
+title: "ساخت ایمیج با Dockerfile"
+description: "ساخت و بهینه‌سازی ایمیج‌های داکر با Dockerfile."
+sections:
+  - title: "اولین Dockerfile شما"
+    explanation: |
+      یک Dockerfile یک **فایل متنی بدون پسوند** است که گام‌به‌گام نحوه ساخت یک ایمیج را توصیف می‌کند.
+
+      یک مثال ساده برای یک اپلیکیشن پایتون:
+
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      COPY . .
+      EXPOSE 5000
+      CMD ["python", "app.py"]
+      ```
+
+      هر خط یک **دستورالعمل** است:
+      - `FROM` — ایمیج پایه (همیشه خط اول!)
+      - `WORKDIR` — دایرکتوری کاری در کانتینر
+      - `COPY` — کپی فایل‌ها از میزبان به کانتینر
+      - `RUN` — اجرای دستور هنگام ساخت
+      - `EXPOSE` — مستندسازی پورت (آن را باز نمی‌کند!)
+      - `CMD` — دستور اجرا هنگام شروع کانتینر
+    examples:
+      - q: "FROM python:3.12-slim"
+        a: "ایمیج پایه را تعریف می‌کند. همه دستورالعمل‌های بعدی بر اساس آن ساخته می‌شوند. باید همیشه اولین دستورالعمل در Dockerfile باشد."
+        labels: ["Dockerfile"]
+        rel:
+          - ["from-anweisung", "تعیین ایمیج پایه", "شروع Dockerfile"]
+      - q: "چرا requirements.txt قبل از بقیه کد کپی می‌شود؟"
+        a: "برای کش لایه‌ها: requirements.txt به ندرت تغییر می‌کند. اگر فقط کد تغییر کند، داکر می‌تواند لایه pip install را از کش بردارد به جای نصب مجدد همه چیز."
+        labels: ["Dockerfile"]
+        rel:
+          - ["copy-reihenfolge", "بهینه‌سازی کش", "استراتژی ساخت"]
+      - q: "تفاوت بین RUN و CMD چیست؟"
+        a: "RUN هنگام ساخت ایمیج اجرا می‌شود و یک لایه ایجاد می‌کند. CMD دستور پیش‌فرض هنگام شروع کانتینر را تعریف می‌کند — فقط در زمان اجرا اجرا می‌شود."
+        labels: ["Dockerfile"]
+        rel:
+          - ["run-vs-cmd", "ساخت در مقابل اجرا", "دستورالعمل‌های Dockerfile"]
+
+  - title: "ساخت یک ایمیج"
+    explanation: |
+      با `docker build` از یک Dockerfile یک ایمیج می‌سازید:
+
+      ```bash
+      # ساخت و تگ‌گذاری ایمیج
+      docker build -t meine-app:1.0 .
+
+      # ساخت با Dockerfile دیگر
+      docker build -t meine-app:1.0 -f Dockerfile.prod .
+      ```
+
+      **نقطه در انتها** همان **Build Context** است — پوشه‌ای که فایل‌هایش برای `COPY` در دسترس داکر قرار می‌گیرند.
+
+      **نکته:** یک فایل `.dockerignore` بسازید تا فایل‌های غیرضروری را حذف کنید:
+
+      ```
+      node_modules
+      .git
+      .env
+      __pycache__
+      ```
+    examples:
+      - q: "docker build -t meine-app:1.0 ."
+        a: "یک ایمیج از Dockerfile در دایرکتوری فعلی می‌سازد و تگ 'meine-app:1.0' به آن می‌دهد. نقطه Build Context را تعریف می‌کند."
+        labels: ["ساخت"]
+        rel:
+          - ["docker-build", "ساخت ایمیج", "تگ‌گذاری"]
+      - q: "Build Context چیست؟"
+        a: "پوشه‌ای که داکر هنگام ساخت به عنوان منبع فایل استفاده می‌کند. همه دستورالعمل‌های COPY/ADD به این پوشه اشاره دارند. کاملاً به Docker Daemon ارسال می‌شود."
+        labels: ["ساخت"]
+        rel:
+          - ["build-context", "منبع فایل برای COPY", "پایه ساخت"]
+      - q: "چرا به .dockerignore نیاز داریم؟"
+        a: "جلوگیری از ورود فایل‌های غیرضروری (node_modules، .git، .env) به Build Context — ساخت را سریع‌تر کرده و از گنجاندن تصادفی داده‌های حساس جلوگیری می‌کند."
+        labels: ["ساخت"]
+        rel:
+          - ["dockerignore", "بهینه‌سازی ساخت", "امنیت"]
+
+  - title: "دستورالعمل‌های مهم Dockerfile"
+    explanation: |
+      علاوه بر مبانی، دستورالعمل‌های مفید دیگری هم وجود دارند:
+
+      | دستورالعمل | عملکرد | مثال |
+      |---|---|---|
+      | `ENV` | تنظیم متغیر محیطی | `ENV NODE_ENV=production` |
+      | `ARG` | آرگومان ساخت (فقط هنگام ساخت) | `ARG VERSION=1.0` |
+      | `ENTRYPOINT` | دستور شروع ثابت | `ENTRYPOINT ["python"]` |
+      | `HEALTHCHECK` | بررسی سلامت کانتینر | `HEALTHCHECK CMD curl -f http://localhost/` |
+      | `USER` | تغییر کاربر | `USER appuser` |
+      | `LABEL` | افزودن متادیتا | `LABEL version="1.0"` |
+
+      **CMD در مقابل ENTRYPOINT:**
+      - `CMD` هنگام `docker run` قابل بازنویسی است
+      - `ENTRYPOINT` ثابت می‌ماند، `CMD` آرگومان‌های پیش‌فرض را ارائه می‌دهد
+    examples:
+      - q: "ENV NODE_ENV=production"
+        a: "متغیر محیطی NODE_ENV را روی 'production' تنظیم می‌کند — هم در هنگام ساخت و هم در زمان اجرا در کانتینر در دسترس است."
+        labels: ["Dockerfile"]
+        rel:
+          - ["env-anweisung", "متغیر محیطی", "ساخت + اجرا"]
+      - q: "HEALTHCHECK --interval=30s CMD curl -f http://localhost:5000/health"
+        a: "داکر هر ۳۰ ثانیه URL را بررسی می‌کند. اگر بررسی شکست بخورد، کانتینر به عنوان 'unhealthy' علامت‌گذاری می‌شود — مفید برای ارکستراسیون."
+        labels: ["Dockerfile"]
+        rel:
+          - ["healthcheck", "سلامت کانتینر", "نظارت"]
+      - q: "چرا باید از USER به جای Root استفاده کرد؟"
+        a: "به دلایل امنیتی: اگر کانتینری که با Root اجرا می‌شود هک شود، مهاجم دسترسی Root دارد. با کاربر غیرمجاز آسیب محدود می‌شود."
+        labels: ["Dockerfile"]
+        rel:
+          - ["user-security", "حداقل دسترسی", "امنیت کانتینر"]
+
+  - title: "ساخت چند مرحله‌ای"
+    explanation: |
+      ساخت چند مرحله‌ای یک **تحول بزرگ** برای حجم ایمیج‌ها است:
+
+      ```dockerfile
+      # مرحله ۱: ساخت
+      FROM node:20 AS builder
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci
+      COPY . .
+      RUN npm run build
+
+      # مرحله ۲: تولید
+      FROM nginx:alpine
+      COPY --from=builder /app/dist /usr/share/nginx/html
+      EXPOSE 80
+      CMD ["nginx", "-g", "daemon off;"]
+      ```
+
+      **نتیجه:** ایمیج نهایی فقط شامل **Nginx + فایل‌های ساخته‌شده** است — بدون Node.js، بدون npm، بدون کد منبع. به جای ۱ گیگابایت فقط حدود ۲۵ مگابایت!
+    examples:
+      - q: "COPY --from=builder /app/dist /usr/share/nginx/html"
+        a: "فایل‌ها را از مرحله ساخت (به نام 'builder') به ایمیج نهایی کپی می‌کند. فقط خروجی‌های ساخت منتقل می‌شوند، نه ابزارهای ساخت."
+        labels: ["چند مرحله‌ای"]
+        rel:
+          - ["copy-from-stage", "خروجی‌های مرحله", "بهینه‌سازی حجم"]
+      - q: "ساخت چند مرحله‌ای چند ایمیج تولید می‌کند؟"
+        a: "فقط یک ایمیج — ایمیج نهایی. همه مراحل میانی پس از ساخت حذف می‌شوند. نتیجه یک ایمیج تولیدی سبک است."
+        labels: ["چند مرحله‌ای"]
+        rel:
+          - ["multi-stage-result", "یک ایمیج نهایی", "حذف مراحل میانی"]
+      - q: "چرا ایمیج نهایی در ساخت چند مرحله‌ای بسیار کوچک‌تر است؟"
+        a: "چون ابزارهای ساخت (کامپایلر، npm، node_modules) فقط در مرحله ساخت وجود دارند. ایمیج تولیدی فقط شامل محیط اجرا و خروجی‌های آماده است."
+        labels: ["چند مرحله‌ای"]
+        rel:
+          - ["multi-stage-size", "حذف ابزار ساخت", "بهینه‌سازی تولید"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره Dockerfile بسنجید!
+    examples:
+      - q: "کدام دستورالعمل باید همیشه اولین در Dockerfile باشد؟"
+        type: input
+        a:
+          - "FROM"
+      - q: "EXPOSE 5000 چه اتفاقی می‌افتد؟"
+        type: select
+        options:
+          - text: "پورت را مستند می‌کند اما آن را باز نمی‌کند"
+            correct: true
+          - text: "پورت به صورت خودکار به بیرون منتشر می‌شود"
+          - text: "کانتینر روی پورت ۵۰۰۰ گوش می‌دهد"
+          - text: "پورت ۵۰۰۰ روی میزبان مسدود می‌شود"
+      - q: "کدام عبارات درباره ساخت چند مرحله‌ای صحیح هستند؟"
+        type: multiple-choice
+        options:
+          - text: "ایمیج نهایی فقط شامل آخرین مرحله است"
+            correct: true
+          - text: "حجم ایمیج را به‌طور قابل‌توجهی کاهش می‌دهند"
+            correct: true
+          - text: "به چندین Dockerfile نیاز است"
+          - text: "COPY --from فایل‌ها را از مرحله دیگر کپی می‌کند"
+            correct: true
+      - q: "کدام فایل مانع ورود فایل‌های غیرضروری به ساخت می‌شود؟"
+        type: input
+        a:
+          - ".dockerignore"
+          - "dockerignore"

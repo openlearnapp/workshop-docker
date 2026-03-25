@@ -1,0 +1,242 @@
+version: 2
+number: 12
+title: "بهترین شیوه‌ها و تولید"
+description: "بهینه‌سازی داکر و کامپوز برای استفاده در محیط تولید."
+sections:
+  - title: "بهترین شیوه‌های Dockerfile"
+    explanation: |
+      یک Dockerfile خوب تفاوت بین ۲ گیگابایت و ۵۰ مگابایت را ایجاد می‌کند:
+
+      **۱. استفاده از ایمیج‌های پایه حداقلی:**
+      ```dockerfile
+      # بد: ۱.۱ گیگابایت
+      FROM ubuntu:22.04
+      # بهتر: ۱۸۰ مگابایت
+      FROM python:3.12-slim
+      # بهترین: ۵۰ مگابایت
+      FROM python:3.12-alpine
+      ```
+
+      **۲. بهینه‌سازی کش لایه‌ها:**
+      ```dockerfile
+      # به ندرت تغییر می‌کند → بالا
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      # اغلب تغییر می‌کند → پایین
+      COPY . .
+      ```
+
+      **۳. ترکیب دستورات RUN:**
+      ```dockerfile
+      # بد: ۳ لایه
+      RUN apt-get update
+      RUN apt-get install -y curl
+      RUN rm -rf /var/lib/apt/lists/*
+
+      # خوب: ۱ لایه + پاکسازی‌شده
+      RUN apt-get update && \
+          apt-get install -y --no-install-recommends curl && \
+          rm -rf /var/lib/apt/lists/*
+      ```
+    examples:
+      - q: "چرا --no-install-recommends در apt-get؟"
+        a: "فقط بسته‌های صریحاً مشخص‌شده نصب می‌شوند، بدون بسته‌های 'توصیه‌شده' اضافی. اغلب ۵۰ تا ۱۰۰ مگابایت در هر نصب صرفه‌جویی می‌شود."
+        labels: ["بهترین شیوه‌ها"]
+        rel:
+          - ["apt-no-recommends", "حداقل‌سازی بسته", "حجم ایمیج"]
+      - q: "چرا در انتها rm -rf /var/lib/apt/lists/*؟"
+        a: "کش apt را در همان لایه حذف می‌کند. چون لایه‌های داکر تغییرناپذیرند، پاکسازی باید در همان دستور RUN انجام شود — وگرنه کش در لایه قبلی باقی می‌ماند."
+        labels: ["بهترین شیوه‌ها"]
+        rel:
+          - ["apt-cleanup", "کش در همان لایه", "درک لایه‌ها"]
+      - q: "ترتیب دستورالعمل‌های COPY چگونه باید باشد؟"
+        a: "فایل‌هایی که به ندرت تغییر می‌کنند اول (requirements.txt، package.json)، کدی که زیاد تغییر می‌کند آخر. به این ترتیب داکر کش لایه‌ها را بهینه استفاده می‌کند."
+        labels: ["بهترین شیوه‌ها"]
+        rel:
+          - ["copy-order", "کم‌تغییر → پرتغییر", "استراتژی کش"]
+
+  - title: "امنیت"
+    explanation: |
+      کانتینرهای داکر به صورت پیش‌فرض با **Root** اجرا می‌شوند — این یک خطر امنیتی است!
+
+      ```dockerfile
+      # ایجاد کاربر غیرمجاز
+      RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+      # اجرا با این کاربر
+      USER appuser
+
+      # سیستم فایل فقط‌خواندنی
+      # docker run --read-only meine-app
+      ```
+
+      **نکات امنیتی بیشتر:**
+      - ایمیج‌ها را مرتباً به‌روزرسانی کنید (وصله‌های امنیتی!)
+      - اطلاعات محرمانه در ایمیج نگذارید (`ENV PASSWORD=xyz` در Dockerfile نه!)
+      - فقط پورت‌های ضروری را باز کنید
+      - از `docker scan` یا Trivy برای اسکن آسیب‌پذیری استفاده کنید
+      - ایمیج‌ها از منابع معتبر (Official Images، Verified Publishers)
+
+      **شگفت‌آور:** در سال ۲۰۲۳ در ۸۷٪ ایمیج‌های عمومی داکر آسیب‌پذیری‌های شناخته‌شده یافت شد!
+    examples:
+      - q: "USER appuser"
+        a: "از این خط به بعد همه دستورات به جای Root با کاربر 'appuser' اجرا می‌شوند. اگر کانتینر هک شود، مهاجم فقط دسترسی محدود دارد."
+        labels: ["امنیت"]
+        rel:
+          - ["non-root-user", "حداقل دسترسی", "مقاوم‌سازی کانتینر"]
+      - q: "اطلاعات محرمانه مانند رمز عبور کجا باید ذخیره شوند؟"
+        a: "در فایل‌های .env (نه در Git!)، Docker Secrets، یا مدیر اطلاعات محرمانه خارجی (Vault، AWS Secrets Manager). هرگز در Dockerfile یا ایمیج!"
+        labels: ["امنیت"]
+        rel:
+          - ["secret-management", "بدون اطلاعات محرمانه در ایمیج", "فایل env + Vault"]
+      - q: "docker run --read-only meine-app"
+        a: "کانتینر را با سیستم فایل فقط‌خواندنی اجرا می‌کند. کانتینر فقط می‌تواند در والیوم‌های متصل‌شده بنویسد — مانع تغییر فایل‌های کانتینر توسط مهاجمان می‌شود."
+        labels: ["امنیت"]
+        rel:
+          - ["readonly-filesystem", "محافظت نوشتن", "کاهش سطح حمله"]
+
+  - title: "کامپوز برای تولید"
+    explanation: |
+      فایل‌های کامپوز تولیدی با محیط توسعه تفاوت دارند:
+
+      ```yaml
+      services:
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile.prod
+          restart: unless-stopped
+          deploy:
+            resources:
+              limits:
+                cpus: "1.0"
+                memory: 512M
+              reservations:
+                cpus: "0.25"
+                memory: 128M
+          logging:
+            driver: json-file
+            options:
+              max-size: "10m"
+              max-file: "3"
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+      ```
+
+      **ویژگی‌های مهم تولید:**
+      - **محدودیت منابع** — جلوگیری از مصرف کل سرور توسط یک سرویس
+      - **محدودیت لاگ** — جلوگیری از پر شدن دیسک توسط لاگ‌ها
+      - **بررسی سلامت** — شناسایی کانتینرهای ناسالم
+      - **سیاست راه‌اندازی مجدد** — بازیابی خودکار
+    examples:
+      - q: "deploy.resources.limits.memory: 512M"
+        a: "مصرف حافظه را به ۵۱۲ مگابایت محدود می‌کند. اگر کانتینر بیشتر مصرف کند، توسط داکر متوقف می‌شود (OOM-Kill). جلوگیری از فلج شدن کل سرور توسط یک سرویس."
+        labels: ["تولید"]
+        rel:
+          - ["memory-limit", "محافظت OOM", "مدیریت منابع"]
+      - q: "logging.options.max-size: 10m"
+        a: "هر فایل لاگ را به ۱۰ مگابایت محدود می‌کند. با max-file: 3 حداکثر ۳ فایل چرخش می‌شوند = حداکثر ۳۰ مگابایت لاگ. بدون این محدودیت لاگ‌ها ممکن است دیسک را پر کنند!"
+        labels: ["تولید"]
+        rel:
+          - ["log-rotation", "محافظت دیسک", "مدیریت لاگ"]
+      - q: "healthcheck.start_period: 40s"
+        a: "۴۰ ثانیه زمان شروع به کانتینر می‌دهد قبل از اینکه شکست‌های Healthcheck شمرده شوند. مفید برای اپلیکیشن‌هایی که هنگام شروع مایگریشن یا کش‌سازی انجام می‌دهند."
+        labels: ["تولید"]
+        rel:
+          - ["start-period", "تحمل زمان شروع", "شروع‌های کند"]
+
+  - title: "جریان‌های کاری مفید داکر"
+    explanation: |
+      چند جریان کاری که در روز‌مره وقت صرفه‌جویی می‌کنند:
+
+      **پاکسازی خودکار:**
+      ```bash
+      # هفته‌ای یک‌بار همه موارد استفاده‌نشده را حذف کنید
+      docker system prune -af --volumes
+      ```
+
+      **استراتژی تگ‌گذاری ایمیج:**
+      ```bash
+      # همیشه به صورت مشخص تگ بزنید
+      docker build -t meine-app:1.2.3 -t meine-app:latest .
+      ```
+
+      **Compose Watch (توسعه):**
+      ```yaml
+      services:
+        api:
+          build: ./api
+          develop:
+            watch:
+              - action: sync
+                path: ./api/src
+                target: /app/src
+              - action: rebuild
+                path: ./api/package.json
+      ```
+
+      ```bash
+      docker compose watch
+      ```
+
+      **Compose Watch** تغییرات کد را به صورت خودکار در کانتینر همگام‌سازی می‌کند — سریع‌تر از Bind Mounts!
+    examples:
+      - q: "docker compose watch"
+        a: "تغییرات فایل‌ها را نظارت و به صورت خودکار در کانتینر همگام‌سازی یا ایمیج را دوباره می‌سازد. جایگزین مدرن Bind Mounts در توسعه."
+        labels: ["جریان‌های کاری"]
+        rel:
+          - ["compose-watch", "همگام‌سازی خودکار", "بارگذاری مجدد سریع"]
+      - q: "docker system prune -af --volumes"
+        a: "همه ایمیج‌های استفاده‌نشده (حتی بدون تگ)، کانتینرهای متوقف، شبکه‌ها و والیوم‌های استفاده‌نشده را حذف می‌کند. -a = همه، -f = بدون تأیید. مرتباً استفاده کنید!"
+        labels: ["جریان‌های کاری"]
+        rel:
+          - ["full-prune", "پاکسازی کامل", "آزادسازی فضا"]
+      - q: "چرا تگ‌گذاری دوگانه (نسخه + latest)؟"
+        a: "همیشه می‌توانید نسخه دقیق را ارجاع دهید (1.2.3) و 'latest' را به عنوان اشاره‌گر به جدیدترین نسخه داشته باشید. بازگشت به نسخه خاص هر زمان ممکن است."
+        labels: ["جریان‌های کاری"]
+        rel:
+          - ["double-tagging", "نسخه + Latest", "قابلیت بازگشت"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره بهترین شیوه‌های داکر بسنجید!
+    examples:
+      - q: "چرا کانتینرها نباید با Root اجرا شوند؟"
+        type: input
+        a:
+          - "Sicherheit"
+          - "sicherheit"
+          - "Security"
+          - "security"
+          - "Least Privilege"
+          - "امنیت"
+      - q: "وقتی کانتینر از محدودیت حافظه خود فراتر رود چه اتفاقی می‌افتد؟"
+        type: select
+        options:
+          - text: "داکر کانتینر را متوقف می‌کند (OOM-Kill)"
+            correct: true
+          - text: "داکر به صورت خودکار حافظه بیشتری اختصاص می‌دهد"
+          - text: "کانتینر کندتر می‌شود"
+          - text: "هیچ اتفاقی — محدودیت‌ها فقط توصیه هستند"
+      - q: "کدام بهترین شیوه‌ها برای Dockerfile ها اعمال می‌شوند؟"
+        type: multiple-choice
+        options:
+          - text: "استفاده از ایمیج‌های پایه حداقلی (slim، alpine)"
+            correct: true
+          - text: "ترکیب دستورات RUN و پاکسازی"
+            correct: true
+          - text: "فایل‌هایی که کمتر تغییر می‌کنند ابتدا کپی شوند"
+            correct: true
+          - text: "اطلاعات محرمانه در دستورالعمل‌های ENV ذخیره شوند"
+      - q: "docker compose watch چه کاری انجام می‌دهد؟"
+        type: select
+        options:
+          - text: "تغییرات فایل را به صورت خودکار در کانتینر همگام‌سازی می‌کند"
+            correct: true
+          - text: "مصرف CPU را نظارت می‌کند"
+          - text: "لاگ‌های کانتینر را بلادرنگ نمایش می‌دهد"
+          - text: "بررسی می‌کند که آیا ایمیج‌ها به‌روز هستند"

@@ -1,0 +1,190 @@
+version: 2
+number: 5
+title: "مدیریت کانتینرها"
+description: "اجرا، توقف، بررسی کانتینرها و خواندن لاگ‌ها."
+sections:
+  - title: "چرخه حیات کانتینر"
+    explanation: |
+      یک کانتینر از وضعیت‌های مختلفی عبور می‌کند:
+
+      ```
+      Created → Running → Paused → Stopped → Removed
+      ```
+
+      مهم‌ترین دستورات:
+
+      ```bash
+      docker create nginx         # ایجاد (بدون اجرا)
+      docker start <container>    # اجرا
+      docker pause <container>    # مکث
+      docker unpause <container>  # ادامه
+      docker stop <container>     # توقف (SIGTERM → SIGKILL)
+      docker kill <container>     # پایان فوری (SIGKILL)
+      docker rm <container>       # حذف
+      ```
+
+      **به خاطر بسپار:** `docker run` = `docker create` + `docker start` در یک مرحله.
+    examples:
+      - q: "docker ps"
+        a: "همه کانتینرهای در حال اجرا را نمایش می‌دهد — با شناسه کانتینر، ایمیج، دستور، زمان ایجاد، وضعیت، پورت‌ها و نام."
+        labels: ["کانتینر"]
+        rel:
+          - ["docker-ps", "کانتینرهای در حال اجرا", "نمای وضعیت"]
+      - q: "docker ps -a"
+        a: "همه کانتینرها را نمایش می‌دهد — از جمله متوقف‌شده‌ها. مفید برای مشاهده کانتینرهایی که هنوز وجود دارند اما اجرا نمی‌شوند."
+        labels: ["کانتینر"]
+        rel:
+          - ["docker-ps-all", "همه کانتینرها", "شامل متوقف‌شده"]
+      - q: "تفاوت بین docker stop و docker kill چیست؟"
+        a: "docker stop ابتدا SIGTERM ارسال می‌کند (خاموشی مرتب) و ۱۰ ثانیه صبر می‌کند. docker kill فوراً SIGKILL ارسال می‌کند — کانتینر بدون هشدار پایان می‌یابد."
+        labels: ["کانتینر"]
+        rel:
+          - ["stop-vs-kill", "SIGTERM در مقابل SIGKILL", "مرتب در مقابل اجباری"]
+
+  - title: "بررسی کانتینر"
+    explanation: |
+      داکر ابزارهای قدرتمندی برای نگاه به داخل کانتینرها ارائه می‌دهد:
+
+      ```bash
+      # اطلاعات جزئی
+      docker inspect <container>
+
+      # فقط فیلدهای خاص (Go Template)
+      docker inspect --format '{{.NetworkSettings.IPAddress}}' <container>
+
+      # فرآیندهای در حال اجرا در کانتینر
+      docker top <container>
+
+      # مصرف منابع بلادرنگ
+      docker stats
+      ```
+
+      `docker inspect` **همه چیز** را نشان می‌دهد — پیکربندی شبکه، والیوم‌ها، متغیرهای محیطی، نقاط اتصال و بیشتر. ابزار شماره ۱ عیب‌یابی شماست.
+    examples:
+      - q: "docker inspect mein-web"
+        a: "خروجی JSON با تمام جزئیات کانتینر: آدرس IP، والیوم‌ها، متغیرهای محیطی، اتصالات، شبکه‌ها، وضعیت و پیکربندی."
+        labels: ["بررسی"]
+        rel:
+          - ["docker-inspect", "جزئیات کانتینر", "خروجی JSON"]
+      - q: "docker stats"
+        a: "مصرف منابع همه کانتینرهای در حال اجرا را بلادرنگ نمایش می‌دهد: درصد CPU، حافظه، ورودی/خروجی شبکه و دیسک. مانند 'top' برای داکر."
+        labels: ["بررسی"]
+        rel:
+          - ["docker-stats", "نظارت بلادرنگ", "مصرف منابع"]
+      - q: "docker inspect --format '{{.State.Status}}' mein-web"
+        a: "فقط وضعیت کانتینر را نمایش می‌دهد (مثلاً 'running'، 'exited'). Go Template دسترسی هدفمند به فیلدهای خاص را به جای خروجی JSON کامل ممکن می‌سازد."
+        labels: ["بررسی"]
+        rel:
+          - ["inspect-format", "Go Template", "دسترسی هدفمند"]
+
+  - title: "لاگ‌ها و اشکال‌زدایی"
+    explanation: |
+      لاگ‌های کانتینر برای اشکال‌زدایی ضروری هستند:
+
+      ```bash
+      # نمایش لاگ‌ها
+      docker logs <container>
+
+      # پیگیری مداوم لاگ‌ها
+      docker logs -f <container>
+
+      # ۵۰ خط آخر با برچسب زمان
+      docker logs --tail 50 -t <container>
+      ```
+
+      برای اشکال‌زدایی عمیق‌تر می‌توانید **وارد کانتینر شوید**:
+
+      ```bash
+      # باز کردن شل در کانتینر در حال اجرا
+      docker exec -it <container> /bin/bash
+
+      # اجرای یک دستور
+      docker exec <container> cat /etc/hostname
+      ```
+
+      **نکته:** `-it` یعنی **i**nteractive + **t**ty — یک نشست شل واقعی دریافت می‌کنید.
+    examples:
+      - q: "docker logs -f mein-web"
+        a: "لاگ‌های کانتینر 'mein-web' را نمایش داده و به صورت مداوم پیگیری می‌کند (مانند 'tail -f'). با Ctrl+C خارج شوید بدون توقف کانتینر."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["docker-logs-follow", "لاگ‌های زنده", "جستجوی خطا"]
+      - q: "docker exec -it mein-web /bin/bash"
+        a: "یک شل Bash تعاملی در کانتینر در حال اجرای 'mein-web' باز می‌کند. می‌توانید در آن حرکت کنید، فایل‌ها را بررسی و دستورات اجرا کنید — مثل SSH به یک سرور."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["docker-exec", "شل در کانتینر", "اشکال‌زدایی تعاملی"]
+      - q: "چرا گاهی /bin/bash در کانتینرها کار نمی‌کند؟"
+        a: "ایمیج‌های مبتنی بر Alpine اغلب Bash نصب ندارند — در آنجا از /bin/sh استفاده کنید. Alpine عمداً حداقلی نگه داشته شده."
+        labels: ["اشکال‌زدایی"]
+        rel:
+          - ["bash-vs-sh", "Alpine بدون Bash", "جایگزین‌های شل"]
+
+  - title: "کپی و صادرات کانتینر"
+    explanation: |
+      گاهی باید فایل‌ها را بین میزبان و کانتینر جابجا کنید:
+
+      ```bash
+      # کپی فایل از میزبان به کانتینر
+      docker cp config.json mein-web:/app/config.json
+
+      # کپی فایل از کانتینر به میزبان
+      docker cp mein-web:/var/log/nginx/error.log ./error.log
+
+      # ذخیره کانتینر به عنوان ایمیج (عکس فوری)
+      docker commit mein-web mein-web-backup:v1
+      ```
+
+      **مهم:** `docker commit` برای پشتیبان‌گیری/اشکال‌زدایی است، **نه** برای تولید ایمیج! برای آن همیشه از Dockerfile استفاده کنید.
+    examples:
+      - q: "docker cp mein-web:/var/log/nginx/error.log ."
+        a: "فایل error.log را از کانتینر 'mein-web' به دایرکتوری فعلی روی میزبان کپی می‌کند. حتی با کانتینرهای متوقف هم کار می‌کند."
+        labels: ["فایل‌ها"]
+        rel:
+          - ["docker-cp", "انتقال فایل", "میزبان ↔ کانتینر"]
+      - q: "docker commit mein-web snapshot:v1"
+        a: "از وضعیت فعلی کانتینر یک ایمیج جدید 'snapshot:v1' می‌سازد. شامل همه تغییراتی که در کانتینر انجام شده."
+        labels: ["فایل‌ها"]
+        rel:
+          - ["docker-commit", "عکس فوری کانتینر", "ذخیره وضعیت"]
+      - q: "چرا نباید docker commit را برای تولید استفاده کرد؟"
+        a: "چون فرآیند ساخت قابل بازتولید نیست — کسی نمی‌داند چه تغییراتی در کانتینر انجام شده. یک Dockerfile هر مرحله را مستند کرده و قابل نسخه‌بندی است."
+        labels: ["فایل‌ها"]
+        rel:
+          - ["commit-vs-dockerfile", "بازتولیدپذیری", "بهترین شیوه"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره مدیریت کانتینر بسنجید!
+    examples:
+      - q: "با چه دستوری یک شل در کانتینر در حال اجرا باز می‌کنید؟"
+        type: input
+        a:
+          - "docker exec -it"
+          - "docker exec"
+      - q: "docker stats چه چیزی نمایش می‌دهد؟"
+        type: select
+        options:
+          - text: "مصرف منابع بلادرنگ همه کانتینرها"
+            correct: true
+          - text: "آمار Docker Hub"
+          - text: "تعداد ایمیج‌های دانلود‌شده"
+          - text: "پیکربندی شبکه"
+      - q: "کدام عبارات درباره docker logs صحیح هستند؟"
+        type: multiple-choice
+        options:
+          - text: "-f لاگ‌ها را به صورت مداوم پیگیری می‌کند"
+            correct: true
+          - text: "--tail 50 پنجاه خط آخر را نمایش می‌دهد"
+            correct: true
+          - text: "لاگ‌ها پس از توقف کانتینر حذف می‌شوند"
+          - text: "-t برچسب زمان اضافه می‌کند"
+            correct: true
+      - q: "فلگ‌های -it در docker exec چه معنایی دارند؟"
+        type: select
+        options:
+          - text: "interactive + tty — نشست شل تعاملی"
+            correct: true
+          - text: "install + test"
+          - text: "input + trace"
+          - text: "inspect + terminal"

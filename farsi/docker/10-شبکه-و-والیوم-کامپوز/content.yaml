@@ -1,0 +1,223 @@
+version: 2
+number: 10
+title: "کامپوز: شبکه و والیوم"
+description: "پیکربندی شبکه‌ها و والیوم‌ها در داکر کامپوز."
+sections:
+  - title: "شبکه‌ها در کامپوز"
+    explanation: |
+      داکر کامپوز به صورت خودکار یک **شبکه پیش‌فرض** ایجاد می‌کند، اما می‌توانید شبکه‌های سفارشی هم تعریف کنید:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          networks:
+            - frontend
+
+        api:
+          build: ./api
+          networks:
+            - frontend
+            - backend
+
+        db:
+          image: postgres:16
+          networks:
+            - backend
+
+      networks:
+        frontend:
+        backend:
+      ```
+
+      **نتیجه:** `web` می‌تواند با `api` ارتباط برقرار کند، `db` می‌تواند با `api` ارتباط برقرار کند، اما `web` **نمی‌تواند مستقیماً** با `db` ارتباط برقرار کند! `api` **پل** بین فرانت‌اند و بک‌اند است.
+
+      این یک **الگوی امنیتی** مهم است — پایگاه داده مستقیماً از فرانت‌اند قابل دسترسی نیست.
+    examples:
+      - q: "چرا شبکه فرانت‌اند و بک‌اند جدا می‌شود؟"
+        a: "امنیت از طریق ایزولاسیون: وب‌سرور نمی‌تواند مستقیماً به پایگاه داده دسترسی پیدا کند — فقط از طریق API. یک وب‌سرور هک‌شده دسترسی به پایگاه داده ندارد."
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["network-segmentation", "امنیت از طریق جداسازی", "دفاع لایه‌ای"]
+      - q: "آیا یک سرویس می‌تواند در چندین شبکه باشد؟"
+        a: "بله! این دقیقاً هسته تقسیم‌بندی شبکه است. سرویس API در هر دو شبکه frontend و backend است و به عنوان تنها نقطه عبور عمل می‌کند."
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["multi-network-service", "سرویس پل", "طراحی شبکه"]
+      - q: "اگر شبکه‌ای تعریف نکنیم چه اتفاقی می‌افتد؟"
+        a: "کامپوز یک شبکه پیش‌فرض (<نام‌پوشه‌پروژه>_default) ایجاد و همه سرویس‌ها را به آن متصل می‌کند. همه می‌توانند به یکدیگر دسترسی پیدا کنند."
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["default-network", "ایجاد خودکار", "همه متصل"]
+
+  - title: "شبکه‌های خارجی و پیکربندی‌شده"
+    explanation: |
+      گاهی کانتینرها در پروژه‌های مختلف کامپوز باید ارتباط برقرار کنند:
+
+      ```yaml
+      networks:
+        shared:
+          external: true
+          name: my-shared-network
+      ```
+
+      یا شبکه را دقیق‌تر پیکربندی کنید:
+
+      ```yaml
+      networks:
+        backend:
+          driver: bridge
+          ipam:
+            config:
+              - subnet: 172.28.0.0/16
+        monitoring:
+          driver: bridge
+          internal: true    # بدون دسترسی به اینترنت!
+      ```
+
+      **`internal: true`** شبکه‌ای بدون دسترسی به اینترنت ایجاد می‌کند — عالی برای پایگاه‌های داده که هرگز نباید به بیرون ارتباط برقرار کنند.
+    examples:
+      - q: "external: true"
+        a: "از یک شبکه موجود استفاده می‌کند که خارج از کامپوز ایجاد شده. کامپوز آن را ایجاد نمی‌کند و هنگام 'down' هم حذف نمی‌کند."
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["external-network", "بین‌پروژه‌ای", "شبکه موجود"]
+      - q: "internal: true"
+        a: "شبکه‌ای ایزوله بدون دسترسی به اینترنت ایجاد می‌کند. کانتینرها فقط با یکدیگر ارتباط برقرار می‌کنند — عالی برای پایگاه‌های داده یا سرویس‌های داخلی."
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["internal-network", "بدون اینترنت", "حداکثر ایزولاسیون"]
+      - q: "چگونه کانتینرها از پروژه‌های مختلف کامپوز ارتباط برقرار کنند؟"
+        a: "از طریق یک شبکه خارجی مشترک. هر دو پروژه آن را با 'external: true' و نام یکسان اعلان می‌کنند. یا: docker network create shared-net"
+        labels: ["شبکه‌ها"]
+        rel:
+          - ["cross-project-network", "اشتراک شبکه خارجی", "بین‌پروژه‌ای"]
+
+  - title: "والیوم‌ها در کامپوز"
+    explanation: |
+      اعلان والیوم‌ها در کامپوز:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          volumes:
+            # Named Volume
+            - db-data:/var/lib/postgresql/data
+            # Bind Mount
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+            # والیوم ناشناس (توصیه نمی‌شود)
+            - /var/log/postgresql
+
+        web:
+          image: nginx:alpine
+          volumes:
+            # Bind Mount (فقط‌خواندنی)
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./html:/usr/share/nginx/html:ro
+
+      volumes:
+        db-data:
+          driver: local
+      ```
+
+      **سه نوع والیوم:**
+      1. **Named Volumes** (`db-data:/path`) — مدیریت‌شده توسط داکر، پایدار
+      2. **Bind Mounts** (`./local:/container`) — پیوند با سیستم فایل میزبان
+      3. **والیوم‌های ناشناس** (`/path`) — موقت، بدون نام (به ندرت مفید)
+    examples:
+      - q: "db-data:/var/lib/postgresql/data"
+        a: "Named Volume 'db-data' را به دایرکتوری داده PostgreSQL متصل می‌کند. داده‌های پایگاه داده از 'docker compose down' جان سالم به در می‌برند — فقط 'down -v' آن‌ها را حذف می‌کند."
+        labels: ["والیوم‌ها"]
+        rel:
+          - ["named-volume-compose", "پایداری پایگاه داده", "بقای داده"]
+      - q: "./nginx.conf:/etc/nginx/nginx.conf:ro"
+        a: "Bind Mount: فایل nginx.conf محلی در کانتینر تعبیه می‌شود. :ro = فقط‌خواندنی، کانتینر نمی‌تواند فایل را تغییر دهد."
+        labels: ["والیوم‌ها"]
+        rel:
+          - ["bind-mount-config", "تعبیه پیکربندی", "محافظت نوشتن"]
+      - q: "چه زمانی از Named Volume و چه زمانی از Bind Mount استفاده می‌شود؟"
+        a: "Named Volume برای داده‌های پایدار (پایگاه داده، آپلودها). Bind Mount برای توسعه (همگام‌سازی کد) و فایل‌های پیکربندی."
+        labels: ["والیوم‌ها"]
+        rel:
+          - ["volume-wahl", "Named در مقابل Bind", "موارد استفاده"]
+
+  - title: "پشتیبان‌گیری و اشتراک والیوم"
+    explanation: |
+      والیوم‌های کامپوز قابل اشتراک بین سرویس‌ها هستند:
+
+      ```yaml
+      services:
+        app:
+          build: ./app
+          volumes:
+            - uploads:/app/uploads
+
+        backup:
+          image: alpine
+          volumes:
+            - uploads:/data/uploads:ro
+            - ./backups:/backups
+          command: sh -c "tar czf /backups/upload-backup.tar.gz /data/uploads"
+          profiles:
+            - backup
+
+      volumes:
+        uploads:
+      ```
+
+      ```bash
+      # ایجاد پشتیبان
+      docker compose --profile backup run backup
+      ```
+
+      **سرویس backup** دسترسی خواندنی به همان داده‌های آپلود دارد و یک آرشیو روی میزبان ایجاد می‌کند.
+    examples:
+      - q: "آیا چندین سرویس می‌توانند از یک والیوم استفاده کنند؟"
+        a: "بله! هر دو نام والیوم یکسان را اعلان می‌کنند. توجه: نوشتن همزمان ممکن است تداخل ایجاد کند — برای سرویس‌های خواننده از :ro استفاده کنید."
+        labels: ["اشتراک والیوم"]
+        rel:
+          - ["shared-volume", "چند سرویسی", "تداخل خواندن/نوشتن"]
+      - q: "docker compose --profile backup run backup"
+        a: "سرویس backup را یک‌بار اجرا می‌کند (run به جای up). پروفایل 'backup' تضمین می‌کند که هنگام 'up' عادی اجرا نشود."
+        labels: ["اشتراک والیوم"]
+        rel:
+          - ["compose-run", "اجرای یک‌باره", "جریان پشتیبان‌گیری"]
+      - q: "چگونه والیوم‌ها را به سرور دیگری منتقل کنیم؟"
+        a: "داده‌های والیوم را به صورت آرشیو tar صادر، به سرور جدید کپی و آنجا به والیوم وارد کنید. یا: از ابزارهای پشتیبان‌گیری والیوم مانند 'docker-volume-backup' استفاده کنید."
+        labels: ["اشتراک والیوم"]
+        rel:
+          - ["volume-migration", "صادرات/واردات", "تغییر سرور"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره شبکه‌ها و والیوم‌های کامپوز بسنجید!
+    examples:
+      - q: "چگونه یک شبکه را 'بدون دسترسی به اینترنت' علامت‌گذاری می‌کنید؟"
+        type: input
+        a:
+          - "internal: true"
+          - "internal"
+      - q: "چرا سرویس‌ها در شبکه‌های جداگانه قرار می‌گیرند؟"
+        type: select
+        options:
+          - text: "امنیت — پایگاه داده مستقیماً از وب‌سرور قابل دسترسی نیست"
+            correct: true
+          - text: "عملکرد — شبکه‌های جدا سریع‌ترند"
+          - text: "داکر فقط شبکه‌ای با ۵ کانتینر پشتیبانی می‌کند"
+          - text: "در docker-compose.yaml اجباری است"
+      - q: "کدام عبارات درباره والیوم‌ها در کامپوز صحیح هستند؟"
+        type: multiple-choice
+        options:
+          - text: "Named Volume ها در بخش 'volumes:' انتهایی اعلان می‌شوند"
+            correct: true
+          - text: ":ro اتصال را فقط‌خواندنی می‌کند"
+            correct: true
+          - text: "'docker compose down' والیوم‌های Named را حذف می‌کند"
+          - text: "چندین سرویس می‌توانند از یک والیوم استفاده کنند"
+            correct: true
+      - q: "چگونه یک پروژه کامپوز از شبکه‌ای که خارجاً ایجاد شده استفاده می‌کند؟"
+        type: input
+        a:
+          - "external: true"
+          - "external"
