@@ -1,0 +1,223 @@
+version: 2
+number: 10
+title: "كومبوز: الشبكات ووحدات التخزين"
+description: "تكوين الشبكات ووحدات التخزين في دوكر كومبوز."
+sections:
+  - title: "الشبكات في كومبوز"
+    explanation: |
+      دوكر كومبوز يُنشئ تلقائياً **شبكة افتراضية**، لكن يمكنك أيضاً تعريف شبكات خاصة:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          networks:
+            - frontend
+
+        api:
+          build: ./api
+          networks:
+            - frontend
+            - backend
+
+        db:
+          image: postgres:16
+          networks:
+            - backend
+
+      networks:
+        frontend:
+        backend:
+      ```
+
+      **النتيجة:** `web` يمكنه التحدث مع `api`، و `db` يمكنه التحدث مع `api`، لكن `web` **لا يستطيع الوصول مباشرة** إلى `db`! الـ `api` هو **الجسر** بين الواجهة الأمامية والخلفية.
+
+      هذا **نمط أمني** مهم — قاعدة البيانات ليست قابلة للوصول مباشرة من الواجهة الأمامية.
+    examples:
+      - q: "لماذا نفصل بين شبكة الواجهة الأمامية والخلفية؟"
+        a: "الأمان من خلال العزل: خادم الويب لا يستطيع الوصول مباشرة لقاعدة البيانات — فقط عبر API. إذا تم اختراق خادم الويب، لا يمكنه الوصول لقاعدة البيانات."
+        labels: ["الشبكات"]
+        rel:
+          - ["network-segmentation", "Sicherheit durch Trennung", "Defense in Depth"]
+      - q: "هل يمكن لخدمة أن تكون في عدة شبكات؟"
+        a: "نعم! هذا هو جوهر تجزئة الشبكة. خدمة API في شبكة frontend و backend وتعمل كنقطة عبور وحيدة."
+        labels: ["الشبكات"]
+        rel:
+          - ["multi-network-service", "Brücken-Service", "Netzwerk-Design"]
+      - q: "ماذا يحدث إذا لم تُعرّف شبكات؟"
+        a: "كومبوز يُنشئ شبكة افتراضية واحدة (<مجلد_المشروع>_default) ويربط جميع الخدمات بها. الكل يستطيع الوصول للكل."
+        labels: ["الشبكات"]
+        rel:
+          - ["default-network", "automatisch erstellt", "alle verbunden"]
+
+  - title: "الشبكات الخارجية والمُعدّة"
+    explanation: |
+      أحياناً يجب أن تتواصل حاويات في مشاريع كومبوز مختلفة:
+
+      ```yaml
+      networks:
+        shared:
+          external: true
+          name: my-shared-network
+      ```
+
+      أو تُعدّ الشبكة بشكل أدق:
+
+      ```yaml
+      networks:
+        backend:
+          driver: bridge
+          ipam:
+            config:
+              - subnet: 172.28.0.0/16
+        monitoring:
+          driver: bridge
+          internal: true    # بدون وصول للإنترنت!
+      ```
+
+      **`internal: true`** يُنشئ شبكة بدون وصول للإنترنت — مثالي لقواعد البيانات التي لا يجب أن تتواصل مع الخارج أبداً.
+    examples:
+      - q: "external: true"
+        a: "يستخدم شبكة موجودة أُنشئت خارج كومبوز. كومبوز لا يُنشئها بنفسه ولا يحذفها عند 'down'."
+        labels: ["الشبكات"]
+        rel:
+          - ["external-network", "projektübergreifend", "bestehendes Netzwerk"]
+      - q: "internal: true"
+        a: "يُنشئ شبكة معزولة بدون وصول للإنترنت. الحاويات فيها يمكنها التواصل مع بعضها فقط — مثالي لقواعد البيانات أو الخدمات الداخلية."
+        labels: ["الشبكات"]
+        rel:
+          - ["internal-network", "kein Internet", "maximale Isolation"]
+      - q: "كيف تتواصل حاويات من مشاريع كومبوز مختلفة؟"
+        a: "عبر شبكة خارجية مشتركة. كلا المشروعين يُصرّحان بها مع 'external: true' ونفس الاسم. بديل: docker network create shared-net"
+        labels: ["الشبكات"]
+        rel:
+          - ["cross-project-network", "externes Netzwerk teilen", "Projekt-übergreifend"]
+
+  - title: "وحدات التخزين في كومبوز"
+    explanation: |
+      التصريح عن وحدات التخزين في كومبوز:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          volumes:
+            # Named Volume
+            - db-data:/var/lib/postgresql/data
+            # Bind Mount
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+            # وحدة تخزين مجهولة (غير مُوصى بها)
+            - /var/log/postgresql
+
+        web:
+          image: nginx:alpine
+          volumes:
+            # Bind Mount (للقراءة فقط)
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./html:/usr/share/nginx/html:ro
+
+      volumes:
+        db-data:
+          driver: local
+      ```
+
+      **ثلاثة أنواع من وحدات التخزين:**
+      1. **Named Volumes** (`db-data:/path`) — يُديرها دوكر، دائمة
+      2. **Bind Mounts** (`./local:/container`) — ربط مع نظام ملفات المضيف
+      3. **وحدات تخزين مجهولة** (`/path`) — مؤقتة، بدون اسم (نادراً ما تكون مفيدة)
+    examples:
+      - q: "db-data:/var/lib/postgresql/data"
+        a: "يُركّب Named Volume 'db-data' في مجلد بيانات PostgreSQL. بيانات قاعدة البيانات تنجو من 'docker compose down' — فقط 'down -v' يحذفها."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["named-volume-compose", "DB-Persistenz", "Datenüberleben"]
+      - q: "./nginx.conf:/etc/nginx/nginx.conf:ro"
+        a: "Bind Mount: ملف nginx.conf المحلي يُركّب في الحاوية. :ro = للقراءة فقط، الحاوية لا تستطيع تعديل الملف."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["bind-mount-config", "Konfiguration einbinden", "Schreibschutz"]
+      - q: "متى نستخدم Named Volumes ومتى Bind Mounts؟"
+        a: "Named Volumes للبيانات الدائمة (قواعد البيانات، الملفات المرفوعة). Bind Mounts للتطوير (مزامنة الكود) وملفات الإعدادات."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["volume-wahl", "Named vs. Bind", "Anwendungsfälle"]
+
+  - title: "النسخ الاحتياطي ومشاركة وحدات التخزين"
+    explanation: |
+      وحدات تخزين كومبوز يمكن مشاركتها بين الخدمات:
+
+      ```yaml
+      services:
+        app:
+          build: ./app
+          volumes:
+            - uploads:/app/uploads
+
+        backup:
+          image: alpine
+          volumes:
+            - uploads:/data/uploads:ro
+            - ./backups:/backups
+          command: sh -c "tar czf /backups/upload-backup.tar.gz /data/uploads"
+          profiles:
+            - backup
+
+      volumes:
+        uploads:
+      ```
+
+      ```bash
+      # إنشاء نسخة احتياطية
+      docker compose --profile backup run backup
+      ```
+
+      **خدمة backup** لديها صلاحية قراءة لنفس بيانات الملفات المرفوعة وتُنشئ أرشيف على المضيف.
+    examples:
+      - q: "هل يمكن لعدة خدمات استخدام نفس وحدة التخزين؟"
+        a: "نعم! كلتاهما تُصرّحان بنفس اسم وحدة التخزين. تنبيه: عمليات الكتابة المتزامنة يمكن أن تُسبب تعارضات — استخدم :ro للخدمات التي تقرأ فقط."
+        labels: ["مشاركة وحدات التخزين"]
+        rel:
+          - ["shared-volume", "Multi-Service", "Lese-/Schreibkonflikt"]
+      - q: "docker compose --profile backup run backup"
+        a: "يُشغّل خدمة backup مرة واحدة (run بدلاً من up). ملف التعريف 'backup' يضمن عدم تشغيلها مع 'up' العادي."
+        labels: ["مشاركة وحدات التخزين"]
+        rel:
+          - ["compose-run", "einmalige Ausführung", "Backup-Workflow"]
+      - q: "كيف تنقل وحدات التخزين إلى خادم آخر؟"
+        a: "تصدّر بيانات وحدة التخزين كأرشيف tar، تنسخها إلى الخادم الجديد وتستوردها في وحدة تخزين هناك. أو: أدوات نسخ احتياطي مثل 'docker-volume-backup'."
+        labels: ["مشاركة وحدات التخزين"]
+        rel:
+          - ["volume-migration", "Export/Import", "Server-Wechsel"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بشبكات ووحدات تخزين كومبوز!
+    examples:
+      - q: "كيف تُعلّم شبكة بأنها 'بدون وصول للإنترنت'؟"
+        type: input
+        a:
+          - "internal: true"
+          - "internal"
+      - q: "لماذا تُفصل الخدمات في شبكات منفصلة؟"
+        type: select
+        options:
+          - text: "الأمان — قاعدة البيانات ليست قابلة للوصول مباشرة من خادم الويب"
+            correct: true
+          - text: "الأداء — الشبكات المنفصلة أسرع"
+          - text: "دوكر يدعم شبكة واحدة فقط مع 5 حاويات"
+          - text: "هي إعداد إلزامي في docker-compose.yaml"
+      - q: "أي من العبارات التالية عن وحدات التخزين في كومبوز صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "Named Volumes تُصرَّح تحت 'volumes:' في نهاية الملف"
+            correct: true
+          - text: ":ro يجعل التركيب للقراءة فقط"
+            correct: true
+          - text: "'docker compose down' يحذف Named Volumes"
+          - text: "عدة خدمات يمكنها استخدام نفس وحدة التخزين"
+            correct: true
+      - q: "كيف يستخدم مشروع كومبوز شبكة أُنشئت خارجياً؟"
+        type: input
+        a:
+          - "external: true"
+          - "external"

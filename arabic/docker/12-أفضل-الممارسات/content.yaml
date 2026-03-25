@@ -1,0 +1,243 @@
+version: 2
+number: 12
+title: "أفضل الممارسات والإنتاج"
+description: "تحسين دوكر وكومبوز للاستخدام في بيئة الإنتاج."
+sections:
+  - title: "أفضل ممارسات Dockerfile"
+    explanation: |
+      Dockerfile جيد يصنع الفرق بين 2 غيغابايت و 50 ميغابايت:
+
+      **1. استخدام صور أساسية مصغرة:**
+      ```dockerfile
+      # سيء: 1.1 GB
+      FROM ubuntu:22.04
+      # أفضل: 180 MB
+      FROM python:3.12-slim
+      # الأفضل: 50 MB
+      FROM python:3.12-alpine
+      ```
+
+      **2. تحسين تخزين الطبقات المؤقت:**
+      ```dockerfile
+      # يتغير نادراً → في الأعلى
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      # يتغير كثيراً → في الأسفل
+      COPY . .
+      ```
+
+      **3. دمج أوامر RUN:**
+      ```dockerfile
+      # سيء: 3 طبقات
+      RUN apt-get update
+      RUN apt-get install -y curl
+      RUN rm -rf /var/lib/apt/lists/*
+
+      # جيد: طبقة واحدة + تنظيف
+      RUN apt-get update && \
+          apt-get install -y --no-install-recommends curl && \
+          rm -rf /var/lib/apt/lists/*
+      ```
+    examples:
+      - q: "لماذا --no-install-recommends مع apt-get؟"
+        a: "يُثبّت فقط الحزم المحددة صراحة، بدون الحزم 'المُوصى بها' الإضافية. يوفر غالباً 50-100 ميغابايت لكل تثبيت."
+        labels: ["أفضل الممارسات"]
+        rel:
+          - ["apt-no-recommends", "Paket-Minimierung", "Image-Größe"]
+      - q: "لماذا rm -rf /var/lib/apt/lists/* في النهاية؟"
+        a: "يحذف ذاكرة apt المؤقتة في نفس الطبقة. بما أن طبقات دوكر غير قابلة للتغيير، يجب التنظيف في نفس أمر RUN — وإلا تبقى الذاكرة في الطبقة السابقة."
+        labels: ["أفضل الممارسات"]
+        rel:
+          - ["apt-cleanup", "Cache im gleichen Layer", "Layer-Verständnis"]
+      - q: "بأي ترتيب يجب أن تكون تعليمات COPY؟"
+        a: "الملفات التي تتغير نادراً أولاً (requirements.txt و package.json)، والكود الذي يتغير كثيراً أخيراً. هكذا يستغل دوكر تخزين الطبقات المؤقت بشكل أمثل."
+        labels: ["أفضل الممارسات"]
+        rel:
+          - ["copy-order", "selten → häufig", "Cache-Strategie"]
+
+  - title: "الأمان"
+    explanation: |
+      حاويات دوكر تعمل افتراضياً كـ **Root** — وهذا خطر أمني!
+
+      ```dockerfile
+      # إنشاء مستخدم غير مميز
+      RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+      # التشغيل كهذا المستخدم
+      USER appuser
+
+      # نظام ملفات للقراءة فقط
+      # docker run --read-only meine-app
+      ```
+
+      **نصائح أمنية إضافية:**
+      - تحديث الصور بانتظام (تصحيحات أمنية!)
+      - لا أسرار في الصور (لا `ENV PASSWORD=xyz` في Dockerfile!)
+      - فتح المنافذ المطلوبة فقط
+      - استخدام `docker scan` أو Trivy لفحص الثغرات
+      - صور من مصادر موثوقة (Official Images، Verified Publishers)
+
+      **مفاجأة:** في 2023 وُجدت ثغرات أمنية معروفة في 87% من صور دوكر العامة!
+    examples:
+      - q: "USER appuser"
+        a: "من هذا السطر فصاعداً تعمل جميع الأوامر كـ 'appuser' بدلاً من Root. إذا تم اختراق الحاوية، يحصل المهاجم على صلاحيات محدودة فقط."
+        labels: ["الأمان"]
+        rel:
+          - ["non-root-user", "Least Privilege", "Container-Härtung"]
+      - q: "أين يجب تخزين الأسرار مثل كلمات المرور؟"
+        a: "في ملفات .env (ليست في Git!)، Docker Secrets، أو مدير أسرار خارجي (Vault، AWS Secrets Manager). أبداً في Dockerfile أو الصورة!"
+        labels: ["الأمان"]
+        rel:
+          - ["secret-management", "keine Secrets in Images", "env-Dateien + Vault"]
+      - q: "docker run --read-only meine-app"
+        a: "يُشغّل الحاوية بنظام ملفات للقراءة فقط. الحاوية يمكنها الكتابة فقط في وحدات التخزين المُركّبة — يمنع المهاجمين من تعديل الملفات في الحاوية."
+        labels: ["الأمان"]
+        rel:
+          - ["readonly-filesystem", "Schreibschutz", "Angriffsfläche reduzieren"]
+
+  - title: "كومبوز للإنتاج"
+    explanation: |
+      ملفات كومبوز للإنتاج تختلف عن إعدادات التطوير:
+
+      ```yaml
+      services:
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile.prod
+          restart: unless-stopped
+          deploy:
+            resources:
+              limits:
+                cpus: "1.0"
+                memory: 512M
+              reservations:
+                cpus: "0.25"
+                memory: 128M
+          logging:
+            driver: json-file
+            options:
+              max-size: "10m"
+              max-file: "3"
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+      ```
+
+      **ميزات الإنتاج المهمة:**
+      - **حدود الموارد** — تمنع خدمة واحدة من استهلاك الخادم بالكامل
+      - **حدود السجلات** — تمنع السجلات من ملء القرص
+      - **فحوصات الصحة** — تكتشف الحاويات غير الصحية
+      - **سياسة إعادة التشغيل** — استرداد تلقائي
+    examples:
+      - q: "deploy.resources.limits.memory: 512M"
+        a: "يحدّ استهلاك الذاكرة بـ 512 ميغابايت. إذا استهلكت الحاوية أكثر، يوقفها دوكر (OOM-Kill). يمنع خدمة واحدة من تعطيل الخادم بالكامل."
+        labels: ["الإنتاج"]
+        rel:
+          - ["memory-limit", "OOM-Schutz", "Ressourcen-Management"]
+      - q: "logging.options.max-size: 10m"
+        a: "يحدّ حجم كل ملف سجل بـ 10 ميغابايت. مع max-file: 3 يتم تدوير 3 ملفات كحد أقصى = 30 ميغابايت سجلات كحد أقصى. بدون هذا الحد يمكن للسجلات ملء القرص!"
+        labels: ["الإنتاج"]
+        rel:
+          - ["log-rotation", "Festplatte schützen", "Log-Management"]
+      - q: "healthcheck.start_period: 40s"
+        a: "يمنح الحاوية 40 ثانية وقت بدء قبل احتساب فحوصات الصحة كأخطاء. مفيد للتطبيقات التي تُنفّذ ترحيلات أو تخزين مؤقت عند البدء."
+        labels: ["الإنتاج"]
+        rel:
+          - ["start-period", "Startzeit-Toleranz", "Langsame Starts"]
+
+  - title: "سير عمل دوكر المفيدة"
+    explanation: |
+      إليك بعض سير العمل التي توفر الوقت يومياً:
+
+      **التنظيف التلقائي:**
+      ```bash
+      # حذف كل غير المستخدم مرة أسبوعياً
+      docker system prune -af --volumes
+      ```
+
+      **استراتيجية تسمية الصور:**
+      ```bash
+      # دائماً علامة محددة
+      docker build -t meine-app:1.2.3 -t meine-app:latest .
+      ```
+
+      **Compose-Watch (للتطوير):**
+      ```yaml
+      services:
+        api:
+          build: ./api
+          develop:
+            watch:
+              - action: sync
+                path: ./api/src
+                target: /app/src
+              - action: rebuild
+                path: ./api/package.json
+      ```
+
+      ```bash
+      docker compose watch
+      ```
+
+      **Compose Watch** يُزامن تغييرات الكود تلقائياً في الحاوية — أسرع من Bind Mounts!
+    examples:
+      - q: "docker compose watch"
+        a: "يُراقب الملفات للتغييرات ويُزامنها تلقائياً في الحاوية أو يُعيد بناء الصورة. بديل حديث لـ Bind Mounts في التطوير."
+        labels: ["سير العمل"]
+        rel:
+          - ["compose-watch", "Auto-Sync", "Hot-Reload"]
+      - q: "docker system prune -af --volumes"
+        a: "يحذف جميع الصور غير المستخدمة (بما فيها غير المُعلّمة)، الحاويات المتوقفة، الشبكات غير المستخدمة ووحدات التخزين. -a = الكل، -f = بدون تأكيد. استخدمه بانتظام!"
+        labels: ["سير العمل"]
+        rel:
+          - ["full-prune", "komplettes Aufräumen", "Speicher freigeben"]
+      - q: "لماذا التسمية المزدوجة (إصدار + latest)؟"
+        a: "يمكنك دائماً الإشارة للإصدار الدقيق (1.2.3) ولديك 'latest' كمؤشر لأحدث إصدار. الرجوع لإصدار محدد ممكن في أي وقت."
+        labels: ["سير العمل"]
+        rel:
+          - ["double-tagging", "Version + Latest", "Rollback-Fähigkeit"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بأفضل ممارسات دوكر!
+    examples:
+      - q: "لماذا لا يجب أن تعمل الحاويات كـ Root؟"
+        type: input
+        a:
+          - "Sicherheit"
+          - "sicherheit"
+          - "Security"
+          - "security"
+          - "Least Privilege"
+          - "الأمان"
+          - "أمان"
+      - q: "ماذا يحدث عندما تتجاوز حاوية حد الذاكرة المُعيّن لها؟"
+        type: select
+        options:
+          - text: "دوكر يوقف الحاوية (OOM-Kill)"
+            correct: true
+          - text: "دوكر يمنحها ذاكرة إضافية تلقائياً"
+          - text: "الحاوية تصبح أبطأ"
+          - text: "لا شيء — الحدود مجرد توصيات"
+      - q: "أي من أفضل الممارسات تنطبق على Dockerfiles؟"
+        type: multiple-choice
+        options:
+          - text: "استخدام صور أساسية مصغرة (slim، alpine)"
+            correct: true
+          - text: "دمج أوامر RUN والتنظيف"
+            correct: true
+          - text: "نسخ الملفات التي تتغير نادراً أولاً"
+            correct: true
+          - text: "حفظ الأسرار في تعليمات ENV"
+      - q: "ماذا يفعل docker compose watch؟"
+        type: select
+        options:
+          - text: "يُزامن تغييرات الملفات تلقائياً في الحاويات"
+            correct: true
+          - text: "يُراقب استهلاك CPU"
+          - text: "يعرض سجلات الحاويات في الوقت الفعلي"
+          - text: "يفحص هل الصور محدّثة"

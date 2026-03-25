@@ -1,0 +1,190 @@
+version: 2
+number: 5
+title: "إدارة الحاويات"
+description: "تشغيل وإيقاف وفحص الحاويات وقراءة السجلات."
+sections:
+  - title: "دورة حياة الحاوية"
+    explanation: |
+      تمر الحاوية بحالات مختلفة:
+
+      ```
+      Created → Running → Paused → Stopped → Removed
+      ```
+
+      أهم الأوامر:
+
+      ```bash
+      docker create nginx         # إنشاء (بدون تشغيل)
+      docker start <container>    # تشغيل
+      docker pause <container>    # إيقاف مؤقت
+      docker unpause <container>  # استئناف
+      docker stop <container>     # إيقاف (SIGTERM → SIGKILL)
+      docker kill <container>     # إنهاء فوري (SIGKILL)
+      docker rm <container>       # حذف
+      ```
+
+      **تذكر:** `docker run` = `docker create` + `docker start` في خطوة واحدة.
+    examples:
+      - q: "docker ps"
+        a: "يعرض جميع الحاويات العاملة — مع معرف الحاوية والصورة والأمر ووقت الإنشاء والحالة والمنافذ والاسم."
+        labels: ["الحاويات"]
+        rel:
+          - ["docker-ps", "laufende Container", "Status-Übersicht"]
+      - q: "docker ps -a"
+        a: "يعرض جميع الحاويات — بما فيها المتوقفة. مفيد لرؤية الحاويات التي لا تزال موجودة لكنها لا تعمل."
+        labels: ["الحاويات"]
+        rel:
+          - ["docker-ps-all", "alle Container", "inkl. gestoppt"]
+      - q: "ما الفرق بين docker stop و docker kill؟"
+        a: "docker stop يُرسل أولاً SIGTERM (إغلاق نظيف) وينتظر 10 ثوانٍ. docker kill يُرسل فوراً SIGKILL — تُنهى الحاوية بدون إنذار."
+        labels: ["الحاويات"]
+        rel:
+          - ["stop-vs-kill", "SIGTERM vs. SIGKILL", "Graceful vs. Force"]
+
+  - title: "فحص الحاويات"
+    explanation: |
+      يوفر دوكر أدوات قوية للنظر داخل الحاويات:
+
+      ```bash
+      # معلومات تفصيلية
+      docker inspect <container>
+
+      # حقول معينة فقط (Go-Template)
+      docker inspect --format '{{.NetworkSettings.IPAddress}}' <container>
+
+      # العمليات الجارية في الحاوية
+      docker top <container>
+
+      # استهلاك الموارد في الوقت الفعلي
+      docker stats
+      ```
+
+      `docker inspect` يُعطيك **كل شيء** — إعدادات الشبكة، وحدات التخزين، متغيرات البيئة، نقاط التحميل والمزيد. إنه أداة التشخيص رقم 1.
+    examples:
+      - q: "docker inspect mein-web"
+        a: "يُعطي مخرجات JSON بجميع تفاصيل الحاوية: عنوان IP، وحدات التخزين، متغيرات البيئة، التحميلات، الشبكات، الحالة والإعدادات."
+        labels: ["الفحص"]
+        rel:
+          - ["docker-inspect", "Container-Details", "JSON-Ausgabe"]
+      - q: "docker stats"
+        a: "يعرض استهلاك الموارد لجميع الحاويات العاملة في الوقت الفعلي: CPU%، الذاكرة، I/O الشبكة و I/O القرص. مثل 'top' لدوكر."
+        labels: ["الفحص"]
+        rel:
+          - ["docker-stats", "Echtzeit-Monitoring", "Ressourcenverbrauch"]
+      - q: "docker inspect --format '{{.State.Status}}' mein-web"
+        a: "يعرض حالة الحاوية فقط (مثل 'running' أو 'exited'). قوالب Go تسمح بالوصول المُستهدف لحقول معينة بدلاً من مخرجات JSON الكاملة."
+        labels: ["الفحص"]
+        rel:
+          - ["inspect-format", "Go-Template", "Gezielter Zugriff"]
+
+  - title: "السجلات وتصحيح الأخطاء"
+    explanation: |
+      سجلات الحاويات ضرورية لتصحيح الأخطاء:
+
+      ```bash
+      # عرض السجلات
+      docker logs <container>
+
+      # متابعة السجلات باستمرار
+      docker logs -f <container>
+
+      # آخر 50 سطر مع الطابع الزمني
+      docker logs --tail 50 -t <container>
+      ```
+
+      للتصحيح المعمق يمكنك **الدخول إلى الحاوية**:
+
+      ```bash
+      # فتح shell في الحاوية العاملة
+      docker exec -it <container> /bin/bash
+
+      # تنفيذ أمر واحد
+      docker exec <container> cat /etc/hostname
+      ```
+
+      **نصيحة:** `-it` تعني **i**nteractive + **t**ty — تحصل على جلسة shell حقيقية.
+    examples:
+      - q: "docker logs -f mein-web"
+        a: "يعرض سجلات الحاوية 'mein-web' ويتابعها باستمرار (مثل 'tail -f'). اضغط Ctrl+C للإيقاف دون إيقاف الحاوية."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["docker-logs-follow", "Live-Logs", "Fehlersuche"]
+      - q: "docker exec -it mein-web /bin/bash"
+        a: "يفتح shell تفاعلية في الحاوية العاملة 'mein-web'. يمكنك التنقل فيها وفحص الملفات وتنفيذ الأوامر — مثل SSH إلى خادم."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["docker-exec", "Shell im Container", "Interaktives Debugging"]
+      - q: "لماذا لا يعمل /bin/bash أحياناً في الحاويات؟"
+        a: "الصور المبنية على Alpine غالباً ليس بها Bash مثبت — هناك يُستخدم /bin/sh بدلاً منه. Alpine مصغرة عن قصد."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["bash-vs-sh", "Alpine hat kein Bash", "Shell-Alternativen"]
+
+  - title: "نسخ وتصدير الحاويات"
+    explanation: |
+      أحياناً تحتاج لنقل ملفات بين المضيف والحاوية:
+
+      ```bash
+      # ملف من المضيف إلى الحاوية
+      docker cp config.json mein-web:/app/config.json
+
+      # ملف من الحاوية إلى المضيف
+      docker cp mein-web:/var/log/nginx/error.log ./error.log
+
+      # حفظ الحاوية كصورة (لقطة)
+      docker commit mein-web mein-web-backup:v1
+      ```
+
+      **مهم:** `docker commit` مخصص للنسخ الاحتياطي والتصحيح، **وليس** لإنتاج الصور! لذلك استخدم دائماً Dockerfile.
+    examples:
+      - q: "docker cp mein-web:/var/log/nginx/error.log ."
+        a: "ينسخ ملف error.log من الحاوية 'mein-web' إلى المجلد الحالي على المضيف. يعمل أيضاً مع الحاويات المتوقفة."
+        labels: ["الملفات"]
+        rel:
+          - ["docker-cp", "Datei-Transfer", "Host ↔ Container"]
+      - q: "docker commit mein-web snapshot:v1"
+        a: "يُنشئ من الحالة الحالية للحاوية صورة جديدة 'snapshot:v1'. تحتوي على جميع التعديلات التي تمت في الحاوية."
+        labels: ["الملفات"]
+        rel:
+          - ["docker-commit", "Container-Snapshot", "Zustand sichern"]
+      - q: "لماذا لا يجب استخدام docker commit للإنتاج؟"
+        a: "لأن عملية البناء ليست قابلة لإعادة الإنتاج — لا أحد يعرف التعديلات التي تمت في الحاوية. Dockerfile يوثق كل خطوة ويمكن إدارة إصداراته."
+        labels: ["الملفات"]
+        rel:
+          - ["commit-vs-dockerfile", "Reproduzierbarkeit", "Best Practice"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بإدارة الحاويات!
+    examples:
+      - q: "بأي أمر تفتح shell في حاوية عاملة؟"
+        type: input
+        a:
+          - "docker exec -it"
+          - "docker exec"
+      - q: "ماذا يعرض docker stats؟"
+        type: select
+        options:
+          - text: "استهلاك الموارد في الوقت الفعلي لجميع الحاويات"
+            correct: true
+          - text: "إحصائيات Docker Hub"
+          - text: "عدد الصور المُنزّلة"
+          - text: "إعدادات الشبكة"
+      - q: "أي من العبارات التالية عن docker logs صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "-f يتابع السجلات باستمرار"
+            correct: true
+          - text: "--tail 50 يعرض آخر 50 سطر"
+            correct: true
+          - text: "السجلات تُحذف بعد إيقاف الحاوية"
+          - text: "-t يُضيف الطابع الزمني"
+            correct: true
+      - q: "ماذا تعني الخيارات -it في docker exec؟"
+        type: select
+        options:
+          - text: "interactive + tty — جلسة shell تفاعلية"
+            correct: true
+          - text: "install + test"
+          - text: "input + trace"
+          - text: "inspect + terminal"

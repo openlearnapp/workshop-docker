@@ -1,0 +1,179 @@
+version: 2
+number: 6
+title: "وحدات التخزين وثبات البيانات"
+description: "تخزين البيانات بشكل دائم في دوكر باستخدام Volumes و Bind Mounts."
+sections:
+  - title: "لماذا وحدات التخزين؟"
+    explanation: |
+      الحاويات **مؤقتة** (ephemeral) — عندما تُحذف حاوية، تضيع **جميع البيانات فيها**!
+
+      تخيل أنك تُشغّل قاعدة بيانات في حاوية. تقوم بالتحديث، تحذف الحاوية القديمة وتُشغّل واحدة جديدة — **كل البيانات ستضيع**.
+
+      **وحدات التخزين (Volumes)** تحل هذه المشكلة: تُخزّن البيانات **خارج الحاوية** على نظام المضيف. حتى لو حُذفت الحاوية، تبقى البيانات.
+
+      هناك نوعان رئيسيان:
+      1. **Named Volumes** — يُديرها دوكر (الطريقة المُوصى بها)
+      2. **Bind Mounts** — ربط مع مجلد على المضيف
+    examples:
+      - q: "ماذا يحدث للبيانات في الحاوية عند حذفها؟"
+        a: "تضيع نهائياً! الطبقة القابلة للكتابة في الحاوية تُحذف بالكامل. فقط البيانات في وحدات التخزين تبقى."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["container-ephemeral", "Daten verloren bei rm", "Motivation für Volumes"]
+      - q: "ما الفرق بين Named Volume و Bind Mount؟"
+        a: "Named Volumes يُديرها دوكر (مكان التخزين يُحدده دوكر). Bind Mounts تربط مسار معين على المضيف مباشرة — أنت تُحدد المكان."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["volume-vs-bind", "Docker-verwaltet vs. Host-Pfad", "Persistenz-Typen"]
+      - q: "لماذا Named Volumes هي الطريقة المُوصى بها؟"
+        a: "لأنها محمولة (تعمل بنفس الطريقة على كل نظام تشغيل)، يُديرها دوكر، يمكن نسخها احتياطياً بسهولة ولها أداء أفضل على macOS/Windows."
+        labels: ["وحدات التخزين"]
+        rel:
+          - ["named-volume-vorteil", "portabel + performant", "Best Practice"]
+
+  - title: "Named Volumes"
+    explanation: |
+      Named Volumes هي الطريقة **المُوصى بها** لثبات البيانات:
+
+      ```bash
+      # إنشاء وحدة تخزين
+      docker volume create meine-daten
+
+      # تشغيل حاوية مع وحدة تخزين
+      docker run -d --name db -v meine-daten:/var/lib/postgresql/data postgres:16
+
+      # عرض وحدات التخزين
+      docker volume ls
+
+      # فحص وحدة تخزين
+      docker volume inspect meine-daten
+      ```
+
+      المسار بعد النقطتين (`:/var/lib/postgresql/data`) هو **نقطة التحميل في الحاوية** — هنا يتم تركيب وحدة التخزين.
+
+      **تجربة:** احذف الحاوية، أنشئ واحدة جديدة بنفس وحدة التخزين — البيانات لا تزال موجودة!
+    examples:
+      - q: "docker run -d -v meine-daten:/var/lib/postgresql/data postgres:16"
+        a: "يُشغّل حاوية PostgreSQL ويُركّب Named Volume 'meine-daten' في مجلد البيانات. بيانات قاعدة البيانات تنجو من إعادة تشغيل الحاوية."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-mount-postgres", "Datenbank-Persistenz", "Named Volume"]
+      - q: "docker volume inspect meine-daten"
+        a: "يعرض تفاصيل وحدة التخزين: تاريخ الإنشاء، المُشغّل، نقطة التحميل على نظام المضيف والعلامات."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-inspect", "Volume-Details", "Diagnose"]
+      - q: "ماذا يحدث إذا لم تكن وحدة التخزين موجودة عند docker run؟"
+        a: "يُنشئها دوكر تلقائياً! استخدام 'docker volume create' صريحاً اختياري، لكنه مُوصى به للنظرة العامة الأفضل."
+        labels: ["Named Volumes"]
+        rel:
+          - ["volume-auto-create", "automatische Erstellung", "Komfort"]
+
+  - title: "Bind Mounts"
+    explanation: |
+      Bind Mounts تربط **مجلد محدد على المضيف** بمجلد في الحاوية:
+
+      ```bash
+      # المجلد الحالي كـ Bind Mount
+      docker run -d -v $(pwd)/html:/usr/share/nginx/html nginx
+
+      # Bind Mount للقراءة فقط
+      docker run -d -v $(pwd)/config:/app/config:ro nginx
+      ```
+
+      **مثالي للتطوير:** غيّر الملفات على مضيفك ← التغييرات تظهر فوراً في الحاوية (والعكس).
+
+      **تحذير:** Bind Mounts لها مخاطر:
+      - الحاوية يمكنها الكتابة فوق ملفات المضيف
+      - مشاكل أداء على macOS/Windows
+      - غير محمولة (المسارات تعتمد على نظام التشغيل)
+    examples:
+      - q: "docker run -v $(pwd):/app -w /app node:20 npm start"
+        a: "يُركّب المجلد الحالي في /app في الحاوية، يُعيّنه كمجلد عمل ويُشغّل npm. مثالي للتطوير المحلي — تغييرات الكود تظهر فوراً."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-dev", "Live-Reload", "Entwicklungs-Setup"]
+      - q: "ماذا يعني :ro في نهاية تركيب وحدة التخزين؟"
+        a: "للقراءة فقط — الحاوية يمكنها قراءة الملفات فقط وليس تعديلها. مفيد لملفات الإعدادات التي لا يجب تغييرها."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["mount-readonly", "Schreibschutz", "Sicherheit"]
+      - q: "لماذا Bind Mounts أبطأ على macOS منها على Linux؟"
+        a: "لأن دوكر على macOS يعمل في جهاز افتراضي Linux. يجب مزامنة الملفات بين نظام ملفات macOS والجهاز الافتراضي — وهذا يُكلف الأداء."
+        labels: ["Bind Mounts"]
+        rel:
+          - ["bind-mount-macos", "VM-Overhead", "Performance-Einschränkung"]
+
+  - title: "تنظيف وحدات التخزين"
+    explanation: |
+      وحدات التخزين تبقى حتى لو لم تستخدمها أي حاوية:
+
+      ```bash
+      # حذف وحدة تخزين معينة
+      docker volume rm meine-daten
+
+      # حذف جميع وحدات التخزين غير المستخدمة
+      docker volume prune
+
+      # عرض استهلاك المساحة
+      docker system df
+      ```
+
+      **حذار:** `docker volume prune` يحذف جميع وحدات التخزين التي لا تستخدمها أي حاوية — تحقق أولاً بأمر `docker volume ls` مما سيُحذف!
+
+      **نصيحة للنسخ الاحتياطي:**
+      ```bash
+      docker run --rm -v meine-daten:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data
+      ```
+    examples:
+      - q: "docker volume prune"
+        a: "يحذف جميع وحدات التخزين التي لا تستخدمها أي حاوية (حتى المتوقفة!). يطلب التأكيد أولاً."
+        labels: ["التنظيف"]
+        rel:
+          - ["volume-prune", "ungenutzte Volumes löschen", "Speicher freigeben"]
+      - q: "كيف تُنشئ نسخة احتياطية من وحدة تخزين؟"
+        a: "تُشغّل حاوية مؤقتة تُركّب وحدة التخزين ومجلد على المضيف، ثم تضغط البيانات بـ tar: docker run --rm -v daten:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz /data"
+        labels: ["التنظيف"]
+        rel:
+          - ["volume-backup", "tar + temporärer Container", "Datensicherung"]
+      - q: "هل يمكن استرجاع وحدة تخزين محذوفة؟"
+        a: "لا — عند حذف وحدة التخزين تضيع البيانات نهائياً. لذلك النسخ الاحتياطي المنتظم مهم!"
+        labels: ["التنظيف"]
+        rel:
+          - ["volume-delete-permanent", "kein Undo", "Backup-Wichtigkeit"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بوحدات التخزين!
+    examples:
+      - q: "بأي خيار تُركّب وحدة تخزين عند docker run؟"
+        type: input
+        a:
+          - "-v"
+          - "--volume"
+      - q: "أي نوع من وحدات التخزين يُوصى به للإنتاج؟"
+        type: select
+        options:
+          - text: "Named Volumes"
+            correct: true
+          - text: "Bind Mounts"
+          - text: "tmpfs Mounts"
+          - text: "بدون وحدة تخزين — تخزين البيانات في الحاوية"
+      - q: "أي من العبارات التالية عن Bind Mounts صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "مثالية للتطوير المحلي"
+            correct: true
+          - text: "الحاوية يمكنها الكتابة فوق ملفات المضيف"
+            correct: true
+          - text: "الأداء متساوٍ على جميع الأنظمة"
+          - text: ":ro يجعل التركيب للقراءة فقط"
+            correct: true
+      - q: "ماذا يحدث لبيانات وحدة التخزين عند حذف الحاوية؟"
+        type: select
+        options:
+          - text: "البيانات تبقى محفوظة"
+            correct: true
+          - text: "البيانات تُحذف"
+          - text: "البيانات تُضغط"
+          - text: "البيانات تُرفع إلى Docker Hub"

@@ -1,0 +1,178 @@
+version: 2
+number: 3
+title: "فهم صور دوكر"
+description: "ما هي الصور وكيف تجدها وكيف تعمل الطبقات؟"
+sections:
+  - title: "ما هي صورة دوكر؟"
+    explanation: |
+      صورة دوكر هي **حزمة للقراءة فقط** تحتوي على كل ما يحتاجه التطبيق للعمل:
+
+      - قاعدة نظام التشغيل (مثل Alpine Linux أو Ubuntu)
+      - بيئة التشغيل (مثل Node.js أو Python)
+      - كود التطبيق
+      - الاعتماديات والمكتبات
+      - ملفات الإعدادات
+
+      الصور مثل **القوالب** — يمكنك إنشاء عدد لا نهائي من الحاويات من صورة واحدة، وكل حاوية تكون متطابقة.
+
+      **حقيقة مدهشة:** صورة Alpine Linux حجمها **5 ميغابايت** فقط! نظام تشغيل كامل أصغر من صورة فوتوغرافية.
+    examples:
+      - q: "لماذا الصور للقراءة فقط؟"
+        a: "حتى تحصل كل حاوية تُشغّل من الصورة على نفس القاعدة بالضبط. التعديلات تحدث فقط في طبقة قابلة للكتابة خاصة بالحاوية."
+        labels: ["الصور"]
+        rel:
+          - ["image-readonly", "Konsistenz-Garantie", "Unveränderlichkeit"]
+      - q: "كم حجم صورة Alpine Linux؟"
+        a: "حوالي 5 ميغابايت فقط — تحتوي على نظام Linux مصغر وتُستخدم كثيراً كقاعدة لصور دوكر خفيفة."
+        labels: ["الصور"]
+        rel:
+          - ["alpine-size", "5 MB Minimal-Linux", "Basis-Image"]
+      - q: "هل يمكن تعديل الصورة بعد إنشائها؟"
+        a: "لا — الصور غير قابلة للتغيير (immutable). للتعديل يجب بناء صورة جديدة. الحاويات تُضيف طبقة قابلة للكتابة فوقها."
+        labels: ["الصور"]
+        rel:
+          - ["image-immutable", "unveränderlich", "Container-Schicht"]
+
+  - title: "البحث عن الصور وتنزيلها"
+    explanation: |
+      **Docker Hub** هو الـ Registry الافتراضي ويحتوي على أكثر من 100,000 صورة:
+
+      ```bash
+      # البحث عن صور
+      docker search python
+
+      # تنزيل صورة
+      docker pull python:3.12
+
+      # عرض جميع الصور المحلية
+      docker images
+      ```
+
+      **العلامات (Tags)** هي أسماء الإصدارات:
+      - `python:3.12` — Python الإصدار 3.12
+      - `python:3.12-slim` — نسخة خفيفة بدون حزم غير ضرورية
+      - `python:3.12-alpine` — مبنية على Alpine Linux (الأصغر حجماً)
+      - `python:latest` — أحدث إصدار (تحذير: يمكن أن يتغير!)
+
+      **نصيحة:** استخدم **دائماً علامات محددة** بدلاً من `latest` — وإلا قد تحصل على إصدار مختلف مع كل تنزيل!
+    examples:
+      - q: "docker pull python:3.12-slim"
+        a: "يُنزّل صورة Python 3.12 بالنسخة الخفيفة — تحتوي على Python بدون حزم غير ضرورية. أصغر بكثير من الصورة القياسية."
+        labels: ["الصور"]
+        rel:
+          - ["docker-pull", "Image herunterladen", "Tag-Varianten"]
+      - q: "docker images"
+        a: "يعرض جميع الصور المخزنة محلياً مع اسم المستودع والعلامة ومعرف الصورة وتاريخ الإنشاء والحجم."
+        labels: ["الصور"]
+        rel:
+          - ["docker-images-list", "lokale Images", "Übersicht"]
+      - q: "لماذا لا يجب استخدام العلامة 'latest'؟"
+        a: "لأن 'latest' يمكن أن تتغير مع كل تنزيل. في بيئة الإنتاج تريد إمكانية إعادة الإنتاج — العلامات المحددة مثل '3.12' تضمن نفس الإصدار دائماً."
+        labels: ["الصور"]
+        rel:
+          - ["latest-vermeiden", "Reproduzierbarkeit", "Best Practice"]
+
+  - title: "فهم طبقات الصور"
+    explanation: |
+      صور دوكر تتكون من **طبقات (Layers)**. كل تعليمة في Dockerfile تُنشئ طبقة:
+
+      ```
+      Layer 4: COPY app.py /app/          ← الكود الخاص بك
+      Layer 3: RUN pip install flask       ← الاعتماديات
+      Layer 2: RUN apt-get update          ← حزم النظام
+      Layer 1: FROM python:3.12-slim       ← الصورة الأساسية
+      ```
+
+      **لماذا الطبقات؟**
+      - **التخزين المؤقت:** الطبقات غير المتغيرة يُعاد استخدامها
+      - **المشاركة:** صور متعددة يمكنها مشاركة نفس الطبقات الأساسية
+      - **الكفاءة:** عند إعادة البناء يتم بناء الطبقة المتغيرة فقط
+
+      إذا غيّرت فقط `app.py`، يحتاج دوكر لإعادة بناء الطبقة 4 فقط — الطبقات 1-3 تأتي من التخزين المؤقت!
+    examples:
+      - q: "docker history nginx"
+        a: "يعرض جميع طبقات صورة nginx مع الحجم ووقت الإنشاء والأمر الذي أنشأ كل طبقة."
+        labels: ["الطبقات"]
+        rel:
+          - ["docker-history", "Layer-Übersicht", "Image-Inspektion"]
+      - q: "لماذا ترتيب التعليمات في Dockerfile مهم؟"
+        a: "بسبب تخزين الطبقات المؤقت: التعليمات التي تتغير نادراً (مثل apt-get install) يجب أن تكون في الأعلى، والتي تتغير كثيراً (مثل COPY للكود) في الأسفل — لاستغلال التخزين المؤقت بشكل أمثل."
+        labels: ["الطبقات"]
+        rel:
+          - ["layer-reihenfolge", "Cache-Optimierung", "Build-Performance"]
+      - q: "ماذا يحدث عندما تستخدم صورتان نفس القاعدة؟"
+        a: "الطبقات المشتركة تُخزّن مرة واحدة فقط على القرص — يتشاركها دوكر تلقائياً. هذا يوفر مساحة تخزين كبيرة."
+        labels: ["الطبقات"]
+        rel:
+          - ["layer-sharing", "Speicher-Effizienz", "Gemeinsame Basis"]
+
+  - title: "تنظيف الصور"
+    explanation: |
+      الصور تتراكم بسرعة. هكذا تُنظّف:
+
+      ```bash
+      # حذف صورة معينة
+      docker rmi python:3.12
+
+      # حذف جميع الصور غير المستخدمة
+      docker image prune
+
+      # تنظيف كل شيء (صور، حاويات، شبكات)
+      docker system prune
+
+      # عرض استهلاك المساحة
+      docker system df
+      ```
+
+      **تحذير:** `docker system prune` يحذف كل شيء لا يستخدمه حاوية عاملة! استخدمه بحذر.
+    examples:
+      - q: "docker rmi python:3.12"
+        a: "يحذف صورة python:3.12 من جهازك. يفشل إذا كانت هناك حاويات منها — يجب حذف الحاويات أولاً."
+        labels: ["التنظيف"]
+        rel:
+          - ["docker-rmi", "Image löschen", "Speicher freigeben"]
+      - q: "docker system df"
+        a: "يعرض استهلاك المساحة لدوكر: كم تشغل الصور والحاويات ووحدات التخزين وذاكرة البناء المؤقتة."
+        labels: ["التنظيف"]
+        rel:
+          - ["docker-system-df", "Speicherübersicht", "Diagnose"]
+      - q: "ما هي 'dangling images'؟"
+        a: "صور بدون علامة (تظهر كـ <none>:<none>) — تنشأ عند إعادة بناء الصور عندما تفقد الصورة القديمة علامتها. يمكن حذفها بأمر 'docker image prune'."
+        labels: ["التنظيف"]
+        rel:
+          - ["dangling-images", "verwaiste Images", "Cleanup"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بصور دوكر!
+    examples:
+      - q: "بأي أمر تُنزّل صورة؟"
+        type: input
+        a:
+          - "docker pull"
+      - q: "ما هي فائدة طبقات الصور؟"
+        type: select
+        options:
+          - text: "التخزين المؤقت — فقط الطبقات المتغيرة يُعاد بناؤها"
+            correct: true
+          - text: "الطبقات تجعل الصور أكبر"
+          - text: "كل طبقة هي حاوية مستقلة"
+          - text: "الطبقات موجودة فقط على Docker Hub"
+      - q: "أي من العبارات التالية عن علامات الصور صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "'latest' يمكن أن تتغير مع كل تنزيل"
+            correct: true
+          - text: "'slim' هي نسخة أصغر بدون حزم غير ضرورية"
+            correct: true
+          - text: "العلامات اختيارية وغير مهمة"
+          - text: "'alpine' مبنية على نظام Linux مصغر"
+            correct: true
+      - q: "ماذا يفعل docker system prune؟"
+        type: select
+        options:
+          - text: "يحذف جميع الصور والحاويات والشبكات غير المستخدمة"
+            correct: true
+          - text: "يحذف الحاويات المتوقفة فقط"
+          - text: "يحذف جميع الحاويات العاملة"
+          - text: "يُعيد دوكر إلى إعدادات المصنع"

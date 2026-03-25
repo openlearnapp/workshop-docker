@@ -1,0 +1,175 @@
+version: 2
+number: 2
+title: "التثبيت والخطوات الأولى"
+description: "تثبيت دوكر وتشغيل أول حاوية."
+sections:
+  - title: "تثبيت دوكر"
+    explanation: |
+      دوكر متوفر لجميع أنظمة التشغيل الشائعة. أسهل طريقة هي **Docker Desktop**:
+
+      - **macOS:** تنزيل Docker Desktop من docker.com وتثبيته
+      - **Windows:** تثبيت Docker Desktop مع واجهة WSL2
+      - **Linux:** تثبيت Docker Engine مباشرة عبر مدير الحزم
+
+      بعد التثبيت تتحقق بأمر بسيط من أن كل شيء يعمل:
+
+      ```bash
+      docker --version
+      ```
+
+      إذا ظهر رقم الإصدار، فدوكر جاهز!
+    examples:
+      - q: "docker --version"
+        a: "يعرض إصدار دوكر المثبت، مثل 'Docker version 24.0.7, build afdd53b'. بهذا تتأكد من أن دوكر مثبت بشكل صحيح."
+        labels: ["التثبيت"]
+        rel:
+          - ["docker-version", "Versionscheck", "Installation verifizieren"]
+      - q: "docker info"
+        a: "يعرض معلومات تفصيلية عن تثبيت دوكر: عدد الحاويات، الصور، مكان التخزين، نظام التشغيل، إصدار النواة والمزيد."
+        labels: ["التثبيت"]
+        rel:
+          - ["docker-info", "System-Details", "Diagnose"]
+      - q: "ما هي الواجهة الخلفية التي يستخدمها Docker Desktop في Windows؟"
+        a: "WSL2 (نظام Windows الفرعي لنظام Linux 2) — بفضله تعمل حاويات Linux بشكل أصلي على Windows دون الحاجة لجهاز افتراضي كامل."
+        labels: ["التثبيت"]
+        rel:
+          - ["wsl2-backend", "Windows-Integration", "Linux-Kompatibilität"]
+
+  - title: "أول حاوية: Hello World"
+    explanation: |
+      الخطوة الأولى التقليدية — شغّل حاوية **hello-world**:
+
+      ```bash
+      docker run hello-world
+      ```
+
+      ماذا يحدث؟
+      1. يبحث دوكر عن صورة `hello-world` محلياً
+      2. لا يجدها ← يُحمّلها من Docker Hub
+      3. يُنشئ حاوية من الصورة
+      4. يُشغّل الحاوية
+      5. تعرض الحاوية رسالة ثم تتوقف
+
+      كل هذا يحدث في **أقل من ثانيتين**. تخيل لو كان عليك تشغيل جهاز افتراضي لذلك!
+    examples:
+      - q: "docker run hello-world"
+        a: "يُحمّل صورة hello-world (في المرة الأولى)، يُنشئ حاوية، يُشغّلها ويعرض رسالة ترحيب."
+        labels: ["الخطوات الأولى"]
+        rel:
+          - ["hello-world-run", "erster Container", "Docker-Einstieg"]
+      - q: "ماذا تعني رسالة 'Unable to find image locally'؟"
+        a: "الصورة غير موجودة بعد على جهازك. يقوم دوكر بتحميلها تلقائياً من Docker Hub — هذا سلوك طبيعي عند التشغيل لأول مرة."
+        labels: ["الخطوات الأولى"]
+        rel:
+          - ["image-pull-auto", "automatischer Download", "Docker Hub"]
+      - q: "ماذا يحدث للحاوية بعد تنفيذ hello-world؟"
+        a: "تتوقف الحاوية فوراً بعد عرض الرسالة. لكنها تبقى موجودة بحالة 'exited' ويمكن عرضها بأمر 'docker ps -a'."
+        labels: ["الخطوات الأولى"]
+        rel:
+          - ["container-exit", "beendeter Container", "Lebenszyklus"]
+
+  - title: "تشغيل خدمة حقيقية"
+    explanation: |
+      الآن يصبح الأمر مثيراً — شغّل **خادم ويب Nginx**:
+
+      ```bash
+      docker run -d -p 8080:80 --name mein-web nginx
+      ```
+
+      معاني الخيارات:
+      - `-d` — **وضع الخلفية**: الحاوية تعمل في الخلفية
+      - `-p 8080:80` — **ربط المنافذ**: منفذ المضيف 8080 ← منفذ الحاوية 80
+      - `--name mein-web` — يعطي الحاوية اسماً
+      - `nginx` — الصورة المراد استخدامها
+
+      افتح الآن `http://localhost:8080` في المتصفح — سترى صفحة ترحيب Nginx! خادم ويب في **أمر واحد**.
+    examples:
+      - q: "docker run -d -p 8080:80 --name mein-web nginx"
+        a: "يُشغّل حاوية Nginx في الخلفية، يربط المنفذ 8080 (المضيف) بالمنفذ 80 (الحاوية) ويُسمّيها 'mein-web'."
+        labels: ["تشغيل الحاويات"]
+        rel:
+          - ["nginx-run", "Webserver starten", "Port-Mapping"]
+      - q: "ماذا يعني -p 8080:80؟"
+        a: "ربط المنافذ: الطلبات على المنفذ 8080 على جهازك (المضيف) يتم توجيهها إلى المنفذ 80 في الحاوية. الصيغة: المضيف:الحاوية."
+        labels: ["تشغيل الحاويات"]
+        rel:
+          - ["port-mapping", "HOST:CONTAINER", "Netzwerk-Zugriff"]
+      - q: "ماذا يحدث بدون خيار -d؟"
+        a: "الحاوية تعمل في المقدمة وتحجز نافذة الطرفية. ترى السجلات مباشرة لكن لا يمكنك إدخال أوامر أخرى. بالضغط على Ctrl+C يتم إيقاف الحاوية."
+        labels: ["تشغيل الحاويات"]
+        rel:
+          - ["detached-vs-foreground", "Hintergrund vs. Vordergrund", "Container-Modus"]
+
+  - title: "إيقاف الحاويات والتنظيف"
+    explanation: |
+      بعد التجربة يجب عليك التنظيف:
+
+      ```bash
+      # إيقاف الحاوية
+      docker stop mein-web
+
+      # حذف الحاوية
+      docker rm mein-web
+
+      # أو كلاهما في خطوة واحدة
+      docker rm -f mein-web
+      ```
+
+      **مهم:** الحاويات المتوقفة تستمر في شغل المساحة! التنظيف المنتظم ممارسة جيدة.
+
+      ```bash
+      # حذف جميع الحاويات المتوقفة
+      docker container prune
+      ```
+    examples:
+      - q: "docker stop mein-web"
+        a: "يُرسل إشارة SIGTERM إلى الحاوية 'mein-web' ويعطيها 10 ثوانٍ للإغلاق النظيف. بعدها يُرسل SIGKILL."
+        labels: ["إدارة الحاويات"]
+        rel:
+          - ["docker-stop", "SIGTERM → SIGKILL", "Graceful Shutdown"]
+      - q: "docker rm -f mein-web"
+        a: "يفرض حذف الحاوية 'mein-web' — حتى لو كانت تعمل. يجمع بين stop + rm في خطوة واحدة."
+        labels: ["إدارة الحاويات"]
+        rel:
+          - ["docker-rm-force", "Force Remove", "Schnelles Aufräumen"]
+      - q: "docker container prune"
+        a: "يحذف جميع الحاويات المتوقفة دفعة واحدة. يطلب التأكيد أولاً. يوفر المساحة ويحافظ على نظافة قائمة الحاويات."
+        labels: ["إدارة الحاويات"]
+        rel:
+          - ["container-prune", "Aufräumen", "Speicher freigeben"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بتثبيت دوكر والخطوات الأولى!
+    examples:
+      - q: "بأي أمر تتحقق من أن دوكر مثبت؟"
+        type: input
+        a:
+          - "docker --version"
+          - "docker version"
+      - q: "ماذا يعني خيار -d في docker run؟"
+        type: select
+        options:
+          - text: "وضع الخلفية — الحاوية تعمل في الخلفية"
+            correct: true
+          - text: "وضع التصحيح — يعرض الأخطاء"
+          - text: "وضع الحذف — يحذف بعد الانتهاء"
+          - text: "وضع التنزيل — يُحمّل الصورة فقط"
+      - q: "أي من العبارات التالية عن ربط المنافذ صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "الصيغة هي المضيف:الحاوية"
+            correct: true
+          - text: "-p 8080:80 يوجه منفذ المضيف 8080 إلى منفذ الحاوية 80"
+            correct: true
+          - text: "ربط المنافذ يتم دائماً تلقائياً"
+          - text: "بدون -p لا يمكن الوصول للحاوية من الخارج"
+            correct: true
+      - q: "ماذا يفعل docker container prune؟"
+        type: select
+        options:
+          - text: "يحذف جميع الحاويات المتوقفة"
+            correct: true
+          - text: "يوقف جميع الحاويات العاملة"
+          - text: "يحذف جميع الصور"
+          - text: "يُعيد تشغيل جميع الحاويات"

@@ -1,0 +1,215 @@
+version: 2
+number: 8
+title: "أساسيات دوكر كومبوز"
+description: "مقدمة في دوكر كومبوز وصيغة docker-compose.yaml."
+sections:
+  - title: "لماذا دوكر كومبوز؟"
+    explanation: |
+      في الدرس السابق رأيت كيف تُشغّل عدة حاويات يدوياً — إنشاء شبكة، تشغيل الحاويات واحدة تلو الأخرى، ضبط متغيرات البيئة...
+
+      مع حاويتين يمكن التعامل. مع 5 أو 10؟ **كابوس.**
+
+      **دوكر كومبوز** يحل ذلك: تصف تطبيقك بالكامل في **ملف YAML واحد** وتُشغّل كل شيء بـ **أمر واحد**:
+
+      ```bash
+      docker compose up
+      ```
+
+      كومبوز يُنشئ تلقائياً:
+      - جميع الحاويات (الخدمات)
+      - شبكة مشتركة
+      - جميع وحدات التخزين
+      - ترتيب التشغيل الصحيح
+    examples:
+      - q: "ما هي الميزة الرئيسية لدوكر كومبوز؟"
+        a: "تعريف تطبيق كامل متعدد الحاويات في ملف واحد وتشغيله بأمر واحد — بدلاً من كتابة عشرات أوامر docker run."
+        labels: ["كومبوز"]
+        rel:
+          - ["compose-vorteil", "Deklarative Konfiguration", "Ein-Befehl-Start"]
+      - q: "docker compose up"
+        a: "يُشغّل جميع الخدمات المُعرّفة في docker-compose.yaml. يُنشئ الشبكات ووحدات التخزين تلقائياً. بدون -d يعمل في المقدمة مع سجلات مجمعة."
+        labels: ["كومبوز"]
+        rel:
+          - ["compose-up", "Alles starten", "Standard-Befehl"]
+      - q: "هل يُنشئ دوكر كومبوز شبكة تلقائياً؟"
+        a: "نعم! كومبوز يُنشئ تلقائياً شبكة باسم <مجلد_المشروع>_default. جميع الخدمات يمكنها الوصول لبعضها عبر اسم الخدمة."
+        labels: ["كومبوز"]
+        rel:
+          - ["compose-default-network", "automatisches Netzwerk", "Service-DNS"]
+
+  - title: "ملف docker-compose.yaml"
+    explanation: |
+      إليك مثال كامل لملف `docker-compose.yaml`:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          ports:
+            - "8080:80"
+          volumes:
+            - ./html:/usr/share/nginx/html
+          depends_on:
+            - api
+
+        api:
+          build: ./api
+          ports:
+            - "3000:3000"
+          environment:
+            - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+          depends_on:
+            - db
+
+        db:
+          image: postgres:16
+          environment:
+            POSTGRES_USER: user
+            POSTGRES_PASSWORD: pass
+            POSTGRES_DB: mydb
+          volumes:
+            - db-data:/var/lib/postgresql/data
+
+      volumes:
+        db-data:
+      ```
+
+      **لاحظ البنية:** `services` ← اسم الخدمة ← الإعدادات. كل خدمة هي حاوية.
+    examples:
+      - q: "ماذا يعني 'build: ./api' في خدمة؟"
+        a: "كومبوز يبني الصورة من Dockerfile في مجلد './api' بدلاً من استخدام صورة جاهزة من Docker Hub. مثالي للتطبيقات الخاصة."
+        labels: ["صيغة YAML"]
+        rel:
+          - ["compose-build", "Image lokal bauen", "eigene Dockerfiles"]
+      - q: "ماذا يفعل depends_on؟"
+        a: "يُحدد ترتيب التشغيل: الخدمة تبدأ فقط بعد تشغيل الخدمات المذكورة. تنبيه: لا ينتظر حتى تكون الخدمات جاهزة — فقط حتى تبدأ."
+        labels: ["صيغة YAML"]
+        rel:
+          - ["depends-on", "Start-Reihenfolge", "kein Readiness-Check"]
+      - q: "لماذا يوجد قسم 'volumes:' في نهاية الملف؟"
+        a: "يُصرّح عن Named Volumes. هنا يُنشأ 'db-data' كوحدة تخزين مُدارة. بدون هذا التصريح سيُعطي دوكر خطأ."
+        labels: ["صيغة YAML"]
+        rel:
+          - ["compose-volumes-block", "Volume-Deklaration", "Top-Level"]
+
+  - title: "أوامر كومبوز"
+    explanation: |
+      أهم أوامر دوكر كومبوز:
+
+      ```bash
+      # تشغيل جميع الخدمات
+      docker compose up -d
+
+      # حالة جميع الخدمات
+      docker compose ps
+
+      # سجلات جميع الخدمات
+      docker compose logs -f
+
+      # سجلات خدمة معينة
+      docker compose logs -f api
+
+      # إيقاف جميع الخدمات
+      docker compose down
+
+      # الإيقاف وحذف وحدات التخزين
+      docker compose down -v
+
+      # إعادة بناء الصور والتشغيل
+      docker compose up -d --build
+      ```
+
+      **مهم:** `docker compose down -v` يحذف أيضاً **وحدات التخزين** — كل بيانات قاعدة البيانات ستضيع!
+    examples:
+      - q: "docker compose down"
+        a: "يوقف ويحذف جميع الحاويات والشبكات ووحدات التخزين المجهولة. Named Volumes تبقى محفوظة! عكس 'docker compose up'."
+        labels: ["الأوامر"]
+        rel:
+          - ["compose-down", "Alles stoppen", "Aufräumen"]
+      - q: "docker compose up -d --build"
+        a: "يُعيد بناء جميع الصور (يتجاهل التخزين المؤقت)، ثم يُشغّل جميع الخدمات في الخلفية. مفيد بعد تعديل الكود."
+        labels: ["الأوامر"]
+        rel:
+          - ["compose-build-restart", "Rebuild + Start", "Nach Änderungen"]
+      - q: "docker compose logs -f api"
+        a: "يعرض سجلات خدمة 'api' باستمرار. بدون اسم الخدمة تُعرض السجلات المجمعة لجميع الخدمات."
+        labels: ["الأوامر"]
+        rel:
+          - ["compose-logs", "Service-Logs", "Debugging"]
+
+  - title: "توسيع خدمة"
+    explanation: |
+      دوكر كومبوز يمكنه **تشغيل خدمة عدة مرات**:
+
+      ```bash
+      # تشغيل 3 نسخ من خدمة api
+      docker compose up -d --scale api=3
+      ```
+
+      هناك قيد مهم: لا يمكنك استخدام **منافذ مضيف ثابتة** لأن عدة حاويات لا يمكنها شغل نفس المنفذ.
+
+      بدلاً من ذلك تستخدم **نطاقات منافذ** أو تدع دوكر يُعيّن المنافذ:
+
+      ```yaml
+      services:
+        api:
+          build: ./api
+          ports:
+            - "3000-3002:3000"  # المنافذ 3000، 3001، 3002
+      ```
+
+      عملياً يُوضع **Reverse Proxy** (مثل Nginx أو Traefik) أمامها لتوزيع الطلبات.
+    examples:
+      - q: "docker compose up -d --scale api=3"
+        a: "يُشغّل 3 نسخ من خدمة api. يُسمّيها دوكر api-1 و api-2 و api-3. مفيد لموازنة الحمل أو المعالجة المتوازية."
+        labels: ["التوسع"]
+        rel:
+          - ["compose-scale", "Service-Instanzen", "Horizontale Skalierung"]
+      - q: "لماذا لا يمكن استخدام منافذ ثابتة عند التوسع؟"
+        a: "لأن كل منفذ على المضيف يمكن شغله مرة واحدة فقط. مع 3 نسخ لا يمكن فتح المنفذ 3000 ثلاث مرات — لذلك نطاقات المنافذ أو التعيين التلقائي."
+        labels: ["التوسع"]
+        rel:
+          - ["scale-port-conflict", "Port-Kollision", "Port-Ranges"]
+      - q: "ما الذي يفعله Reverse Proxy أمام الخدمات الموسعة؟"
+        a: "يوزع الطلبات الواردة على نسخ الخدمة المختلفة (موازنة الحمل). Traefik يمكنه فعل ذلك تلقائياً عبر علامات دوكر."
+        labels: ["التوسع"]
+        rel:
+          - ["reverse-proxy-lb", "Load Balancing", "Traefik/Nginx"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بدوكر كومبوز!
+    examples:
+      - q: "ما اسم ملف إعدادات دوكر كومبوز؟"
+        type: input
+        a:
+          - "docker-compose.yaml"
+          - "docker-compose.yml"
+          - "compose.yaml"
+          - "compose.yml"
+      - q: "ماذا يفعل 'docker compose down -v'؟"
+        type: select
+        options:
+          - text: "يوقف كل شيء ويحذف وحدات التخزين أيضاً"
+            correct: true
+          - text: "يعرض الإصدار"
+          - text: "يبدأ في وضع التفاصيل"
+          - text: "يوقف وحدات التخزين فقط"
+      - q: "أي من العبارات التالية عن دوكر كومبوز صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "كومبوز يُنشئ تلقائياً شبكة لجميع الخدمات"
+            correct: true
+          - text: "الخدمات يمكنها الوصول لبعضها عبر اسم الخدمة"
+            correct: true
+          - text: "depends_on ينتظر حتى تكون الخدمة جاهزة"
+          - text: "--build يفرض إعادة بناء الصور"
+            correct: true
+      - q: "ماذا يحدث لـ Named Volumes عند 'docker compose down' (بدون -v)؟"
+        type: select
+        options:
+          - text: "تبقى محفوظة"
+            correct: true
+          - text: "تُحذف"
+          - text: "تُضغط"
+          - text: "تُنسخ احتياطياً على Docker Hub"

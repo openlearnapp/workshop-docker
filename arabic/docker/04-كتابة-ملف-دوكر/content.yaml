@@ -1,0 +1,186 @@
+version: 2
+number: 4
+title: "كتابة Dockerfile"
+description: "إنشاء وتحسين صور دوكر الخاصة بك باستخدام Dockerfile."
+sections:
+  - title: "أول Dockerfile لك"
+    explanation: |
+      Dockerfile هو **ملف نصي بدون امتداد** يصف خطوة بخطوة كيف تُبنى الصورة.
+
+      إليك مثال بسيط لتطبيق Python:
+
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      COPY . .
+      EXPOSE 5000
+      CMD ["python", "app.py"]
+      ```
+
+      كل سطر هو **تعليمة**:
+      - `FROM` — الصورة الأساسية (دائماً السطر الأول!)
+      - `WORKDIR` — مجلد العمل في الحاوية
+      - `COPY` — نسخ الملفات من المضيف إلى الحاوية
+      - `RUN` — تنفيذ أمر أثناء البناء
+      - `EXPOSE` — توثيق المنفذ (لا يفتحه!)
+      - `CMD` — أمر البدء عند تشغيل الحاوية
+    examples:
+      - q: "FROM python:3.12-slim"
+        a: "يُحدد الصورة الأساسية. جميع التعليمات التالية تُبنى عليها. يجب أن تكون دائماً التعليمة الأولى في Dockerfile."
+        labels: ["Dockerfile"]
+        rel:
+          - ["from-anweisung", "Basis-Image festlegen", "Dockerfile-Start"]
+      - q: "لماذا يتم نسخ requirements.txt قبل باقي الكود؟"
+        a: "لتخزين الطبقات المؤقت: requirements.txt يتغير نادراً. إذا تغير الكود فقط، يمكن لدوكر استخدام طبقة pip install من التخزين المؤقت بدلاً من إعادة تثبيت كل شيء."
+        labels: ["Dockerfile"]
+        rel:
+          - ["copy-reihenfolge", "Cache-Optimierung", "Build-Strategie"]
+      - q: "ما الفرق بين RUN و CMD؟"
+        a: "RUN يُنفَّذ أثناء بناء الصورة ويُنشئ طبقة. CMD يُحدد الأمر الافتراضي عند تشغيل الحاوية — يُنفَّذ فقط في وقت التشغيل."
+        labels: ["Dockerfile"]
+        rel:
+          - ["run-vs-cmd", "Build vs. Runtime", "Dockerfile-Anweisungen"]
+
+  - title: "بناء صورة"
+    explanation: |
+      باستخدام `docker build` تُنشئ صورة من Dockerfile:
+
+      ```bash
+      # بناء الصورة وتسميتها
+      docker build -t meine-app:1.0 .
+
+      # البناء باستخدام Dockerfile مختلف
+      docker build -t meine-app:1.0 -f Dockerfile.prod .
+      ```
+
+      **النقطة في النهاية** هي **سياق البناء (Build-Context)** — المجلد الذي يتوفر لدوكر لنسخ الملفات منه بأمر `COPY`.
+
+      **نصيحة:** أنشئ ملف `.dockerignore` لاستبعاد الملفات غير الضرورية:
+
+      ```
+      node_modules
+      .git
+      .env
+      __pycache__
+      ```
+    examples:
+      - q: "docker build -t meine-app:1.0 ."
+        a: "يبني صورة من Dockerfile في المجلد الحالي ويُعطيها العلامة 'meine-app:1.0'. النقطة تُحدد سياق البناء."
+        labels: ["البناء"]
+        rel:
+          - ["docker-build", "Image erstellen", "Tag vergeben"]
+      - q: "ما هو سياق البناء (Build-Context)؟"
+        a: "المجلد الذي يستخدمه دوكر كمصدر للملفات أثناء البناء. جميع تعليمات COPY/ADD تشير إلى هذا المجلد. يُرسل بالكامل إلى Docker Daemon."
+        labels: ["البناء"]
+        rel:
+          - ["build-context", "Dateiquelle für COPY", "Build-Grundlage"]
+      - q: "لماذا نحتاج ملف .dockerignore؟"
+        a: "يمنع الملفات غير الضرورية (node_modules و .git و .env) من الدخول في سياق البناء — يُسرّع البناء ويمنع تضمين البيانات الحساسة عن طريق الخطأ."
+        labels: ["البناء"]
+        rel:
+          - ["dockerignore", "Build-Optimierung", "Sicherheit"]
+
+  - title: "تعليمات Dockerfile المهمة"
+    explanation: |
+      بالإضافة إلى الأساسيات هناك تعليمات مفيدة أخرى:
+
+      | التعليمة | الوظيفة | مثال |
+      |---|---|---|
+      | `ENV` | تعيين متغير بيئة | `ENV NODE_ENV=production` |
+      | `ARG` | وسيط بناء (أثناء البناء فقط) | `ARG VERSION=1.0` |
+      | `ENTRYPOINT` | أمر بدء ثابت | `ENTRYPOINT ["python"]` |
+      | `HEALTHCHECK` | فحص صحة الحاوية | `HEALTHCHECK CMD curl -f http://localhost/` |
+      | `USER` | تغيير المستخدم | `USER appuser` |
+      | `LABEL` | إضافة بيانات وصفية | `LABEL version="1.0"` |
+
+      **CMD مقابل ENTRYPOINT:**
+      - `CMD` يمكن تجاوزه عند `docker run`
+      - `ENTRYPOINT` يبقى ثابتاً، `CMD` يُوفر الوسائط الافتراضية له
+    examples:
+      - q: "ENV NODE_ENV=production"
+        a: "يُعيّن متغير البيئة NODE_ENV إلى 'production' — يكون متاحاً أثناء البناء وفي وقت التشغيل في الحاوية."
+        labels: ["Dockerfile"]
+        rel:
+          - ["env-anweisung", "Umgebungsvariable", "Build + Runtime"]
+      - q: "HEALTHCHECK --interval=30s CMD curl -f http://localhost:5000/health"
+        a: "يفحص دوكر العنوان كل 30 ثانية. إذا فشل الفحص، تُصنَّف الحاوية كـ 'unhealthy' — مفيد لإدارة الخدمات."
+        labels: ["Dockerfile"]
+        rel:
+          - ["healthcheck", "Container-Gesundheit", "Monitoring"]
+      - q: "لماذا يجب استخدام USER بدلاً من Root؟"
+        a: "لأسباب أمنية: إذا كانت الحاوية تعمل كـ Root وتم اختراقها، يحصل المهاجم على صلاحيات Root. باستخدام مستخدم غير مميز تُحدّ الأضرار."
+        labels: ["Dockerfile"]
+        rel:
+          - ["user-security", "Least Privilege", "Container-Sicherheit"]
+
+  - title: "البناء متعدد المراحل"
+    explanation: |
+      البناء متعدد المراحل (Multi-Stage Builds) **يُغيّر قواعد اللعبة** فيما يخص حجم الصور:
+
+      ```dockerfile
+      # المرحلة 1: البناء
+      FROM node:20 AS builder
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci
+      COPY . .
+      RUN npm run build
+
+      # المرحلة 2: الإنتاج
+      FROM nginx:alpine
+      COPY --from=builder /app/dist /usr/share/nginx/html
+      EXPOSE 80
+      CMD ["nginx", "-g", "daemon off;"]
+      ```
+
+      **النتيجة:** الصورة النهائية تحتوي **فقط على Nginx والملفات المبنية** — لا Node.js ولا npm ولا كود المصدر. بدلاً من 1 غيغابايت فقط ~25 ميغابايت!
+    examples:
+      - q: "COPY --from=builder /app/dist /usr/share/nginx/html"
+        a: "ينسخ الملفات من مرحلة البناء (المسماة 'builder') إلى الصورة النهائية. فقط نتائج البناء تُنقل، وليس أدوات البناء."
+        labels: ["البناء متعدد المراحل"]
+        rel:
+          - ["copy-from-stage", "Stage-Artefakte", "Größen-Optimierung"]
+      - q: "كم صورة يُنتج البناء متعدد المراحل؟"
+        a: "صورة واحدة فقط — الصورة النهائية. جميع المراحل الوسيطة تُحذف بعد البناء. النتيجة صورة إنتاج خفيفة."
+        labels: ["البناء متعدد المراحل"]
+        rel:
+          - ["multi-stage-result", "ein finales Image", "Zwischen-Stages verworfen"]
+      - q: "لماذا الصورة النهائية في البناء متعدد المراحل أصغر بكثير؟"
+        a: "لأن أدوات البناء (المُجمّع، npm، node_modules) موجودة فقط في مرحلة البناء. صورة الإنتاج تحتوي فقط على بيئة التشغيل والملفات الجاهزة."
+        labels: ["البناء متعدد المراحل"]
+        rel:
+          - ["multi-stage-size", "Build-Tools entfernt", "Produktions-Optimierung"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بملفات Dockerfile!
+    examples:
+      - q: "أي تعليمة يجب أن تكون دائماً الأولى في Dockerfile؟"
+        type: input
+        a:
+          - "FROM"
+      - q: "ماذا يحدث عند EXPOSE 5000؟"
+        type: select
+        options:
+          - text: "يوثق المنفذ لكنه لا يفتحه"
+            correct: true
+          - text: "يُفتح المنفذ تلقائياً للخارج"
+          - text: "الحاوية تستمع على المنفذ 5000"
+          - text: "يحجب المنفذ 5000 على المضيف"
+      - q: "أي من العبارات التالية عن البناء متعدد المراحل صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "الصورة النهائية تحتوي فقط على المرحلة الأخيرة"
+            correct: true
+          - text: "يُقلل حجم الصورة بشكل كبير"
+            correct: true
+          - text: "تحتاج عدة ملفات Dockerfile"
+          - text: "COPY --from ينسخ ملفات من مرحلة أخرى"
+            correct: true
+      - q: "أي ملف يمنع الملفات غير الضرورية من الدخول في البناء؟"
+        type: input
+        a:
+          - ".dockerignore"
+          - "dockerignore"

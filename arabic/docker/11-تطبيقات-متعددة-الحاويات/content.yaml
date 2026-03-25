@@ -1,0 +1,255 @@
+version: 2
+number: 11
+title: "تطبيقات متعددة الحاويات"
+description: "بناء وإدارة تطبيق كامل مع خدمات متعددة."
+sections:
+  - title: "بنية تطبيق متعدد الحاويات"
+    explanation: |
+      تطبيق ويب نموذجي يتكون من عدة مكونات:
+
+      ```
+      Browser → Nginx (Reverse Proxy) → API (Node.js) → PostgreSQL
+                         ↓                    ↓
+                  Static Files            Redis (Cache)
+      ```
+
+      في دوكر **كل خدمة تصبح حاوية مستقلة**:
+      - **Nginx** — Reverse Proxy، يخدم الملفات الثابتة
+      - **API** — منطق التطبيق
+      - **PostgreSQL** — قاعدة بيانات علائقية
+      - **Redis** — تخزين مؤقت وجلسات
+
+      المبدأ: **عملية واحدة لكل حاوية**. كل حاوية لها مهمة واحدة ويمكن توسيعها وتحديثها وتصحيحها بشكل مستقل.
+    examples:
+      - q: "لماذا 'عملية واحدة لكل حاوية'؟"
+        a: "عزل أفضل، تصحيح أسهل، توسيع وتحديث مستقل. إذا كان API يتحمل حملاً أكبر، توسّع حاوية API فقط — وليس قاعدة البيانات."
+        labels: ["البنية"]
+        rel:
+          - ["single-process", "Isolation + Skalierung", "Container-Prinzip"]
+      - q: "لماذا نضع Nginx أمام API؟"
+        a: "Nginx كـ Reverse Proxy يتولى إنهاء SSL والتخزين المؤقت والضغط وتحديد المعدل وخدمة الملفات الثابتة — مما يُخفف العبء عن API للمنطق الفعلي."
+        labels: ["البنية"]
+        rel:
+          - ["reverse-proxy-vorteil", "SSL + Caching + Static", "API-Entlastung"]
+      - q: "متى نحتاج Redis بالإضافة إلى قاعدة البيانات؟"
+        a: "للجلسات، تخزين استعلامات قاعدة البيانات المتكررة مؤقتاً، قوائم الانتظار والبيانات الفورية. Redis يعمل في الذاكرة وبالتالي أسرع بمراتب من قاعدة بيانات القرص."
+        labels: ["البنية"]
+        rel:
+          - ["redis-usecase", "Cache + Sessions", "Performance"]
+
+  - title: "ملف كومبوز الكامل"
+    explanation: |
+      إليك ملف `docker-compose.yaml` كامل لتطبيق قريب من الإنتاج:
+
+      ```yaml
+      services:
+        nginx:
+          image: nginx:alpine
+          ports:
+            - "80:80"
+          volumes:
+            - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+            - static-files:/usr/share/nginx/html:ro
+          depends_on:
+            api:
+              condition: service_healthy
+          networks:
+            - frontend
+
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile
+          environment:
+            DATABASE_URL: postgresql://app:secret@db:5432/myapp
+            REDIS_URL: redis://redis:6379
+            NODE_ENV: production
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+          depends_on:
+            db:
+              condition: service_healthy
+            redis:
+              condition: service_started
+          networks:
+            - frontend
+            - backend
+          restart: unless-stopped
+
+        db:
+          image: postgres:16-alpine
+          environment:
+            POSTGRES_USER: app
+            POSTGRES_PASSWORD: secret
+            POSTGRES_DB: myapp
+          volumes:
+            - db-data:/var/lib/postgresql/data
+            - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U app"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+          networks:
+            - backend
+          restart: unless-stopped
+
+        redis:
+          image: redis:7-alpine
+          volumes:
+            - redis-data:/data
+          networks:
+            - backend
+          restart: unless-stopped
+
+      volumes:
+        db-data:
+        redis-data:
+        static-files:
+
+      networks:
+        frontend:
+        backend:
+          internal: true
+      ```
+    examples:
+      - q: "لماذا شبكة backend معيّنة كـ 'internal: true'؟"
+        a: "قاعدة البيانات و Redis لا يحتاجان وصولاً للإنترنت. 'internal: true' يمنع هذه الحاويات من التواصل مع الخارج — إجراء أمني مهم."
+        labels: ["كومبوز"]
+        rel:
+          - ["backend-internal", "kein Internet für DB", "Sicherheitsmaßnahme"]
+      - q: "لماذا خدمة API في شبكتين؟"
+        a: "هي الجسر: في شبكة frontend تستقبل الطلبات من Nginx، وفي شبكة backend تصل إلى قاعدة البيانات و Redis. Nginx لا يستطيع الوصول لقاعدة البيانات مباشرة."
+        labels: ["كومبوز"]
+        rel:
+          - ["api-bridge", "Frontend ↔ Backend", "Netzwerk-Architektur"]
+      - q: "ماذا يفعل init.sql كـ Bind Mount مع PostgreSQL؟"
+        a: "PostgreSQL يُنفّذ جميع ملفات SQL في /docker-entrypoint-initdb.d/ عند التشغيل لأول مرة. مثالي لإنشاء المخطط وبيانات البذر."
+        labels: ["كومبوز"]
+        rel:
+          - ["pg-init-sql", "Datenbank-Initialisierung", "Erster Start"]
+
+  - title: "إعداد التطوير مقابل الإنتاج"
+    explanation: |
+      غالباً تحتاج إعدادات مختلفة. دوكر كومبوز يدعم **ملفات التجاوز (Override)**:
+
+      **docker-compose.yaml** (الأساس):
+      ```yaml
+      services:
+        api:
+          build: ./api
+          environment:
+            NODE_ENV: production
+      ```
+
+      **docker-compose.override.yaml** (التطوير):
+      ```yaml
+      services:
+        api:
+          volumes:
+            - ./api:/app        # إعادة تحميل مباشرة
+          environment:
+            NODE_ENV: development
+            DEBUG: "true"
+          ports:
+            - "9229:9229"       # منفذ المصحح
+      ```
+
+      كومبوز يدمج الملفات تلقائياً! للإنتاج:
+      ```bash
+      docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+      ```
+    examples:
+      - q: "ما هو docker-compose.override.yaml؟"
+        a: "ملف يُدمج تلقائياً مع docker-compose.yaml — بدون خيارات إضافية. مثالي لإعدادات التطوير المحلية التي لا تنتمي للإنتاج."
+        labels: ["الإعدادات"]
+        rel:
+          - ["compose-override", "automatisches Merge", "Dev-Einstellungen"]
+      - q: "docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d"
+        a: "يبدأ بالإعدادات الأساسية بالإضافة إلى تجاوزات الإنتاج. الملف الثاني يتجاوز/يُكمل قيم الأول."
+        labels: ["الإعدادات"]
+        rel:
+          - ["compose-multi-file", "Produktions-Overrides", "Explizites Merge"]
+      - q: "كيف تمنع تحميل ملف Override في الإنتاج؟"
+        a: "في الإنتاج حدّد الملفات صراحة: -f docker-compose.yaml -f docker-compose.prod.yaml. أو: أضف ملف Override إلى .gitignore."
+        labels: ["الإعدادات"]
+        rel:
+          - ["override-production", "explizite Datei-Angabe", "Sicherheit"]
+
+  - title: "تصحيح أخطاء التطبيقات متعددة الحاويات"
+    explanation: |
+      عندما لا يعمل شيء، إليك استراتيجية التصحيح:
+
+      ```bash
+      # 1. فحص حالة جميع الخدمات
+      docker compose ps
+
+      # 2. سجلات الخدمة المشكلة
+      docker compose logs api
+
+      # 3. النظر داخل الحاوية
+      docker compose exec api sh
+
+      # 4. اختبار اتصال الشبكة
+      docker compose exec api ping db
+      docker compose exec api curl http://localhost:3000/health
+
+      # 5. فحص متغيرات البيئة
+      docker compose exec api env
+
+      # 6. فحص إعدادات الحاوية
+      docker compose config
+      ```
+
+      **`docker compose config`** لا يُقدر بثمن — يُظهر **الإعدادات المحلولة** بعد دمج جميع الملفات واستبدال المتغيرات.
+    examples:
+      - q: "docker compose config"
+        a: "يعرض ملف docker-compose.yaml المحلول بالكامل — مع جميع التجاوزات واستبدالات المتغيرات والقيم الافتراضية. مثالي لرؤية ما يستخدمه دوكر كومبوز فعلاً."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["compose-config", "aufgelöste Konfiguration", "Fehler finden"]
+      - q: "docker compose exec api sh"
+        a: "يفتح shell في خدمة api العاملة. من هناك يمكنك اختبار الشبكة وفحص الملفات والتحقق من متغيرات البيئة وفحص العمليات."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["compose-exec", "Shell im Service", "Interaktives Debugging"]
+      - q: "كيف تعرف أن خدمة ليست 'healthy'؟"
+        a: "في 'docker compose ps' تظهر الحالة 'unhealthy' أو 'starting'. في سجلات الخدمة تجد السبب — غالباً اتصال قاعدة بيانات مفقود أو منفذ خاطئ."
+        labels: ["تصحيح الأخطاء"]
+        rel:
+          - ["unhealthy-debug", "Status prüfen", "Logs lesen"]
+
+  - title: "اختبار المعرفة"
+    explanation: |
+      اختبر معرفتك بالتطبيقات متعددة الحاويات!
+    examples:
+      - q: "أي ملف يُدمج تلقائياً مع docker-compose.yaml؟"
+        type: input
+        a:
+          - "docker-compose.override.yaml"
+          - "docker-compose.override.yml"
+      - q: "لماذا يُوصى بعملية واحدة لكل حاوية؟"
+        type: select
+        options:
+          - text: "عزل أفضل، توسيع مستقل وتصحيح أسهل"
+            correct: true
+          - text: "دوكر يسمح بعملية واحدة فقط"
+          - text: "الحاويات تبدأ أسرع مع عملية واحدة"
+          - text: "تحتاج ذاكرة أقل"
+      - q: "أي من العبارات التالية عن بنية التطبيق المعروضة صحيحة؟"
+        type: multiple-choice
+        options:
+          - text: "Nginx لا يستطيع الوصول لقاعدة البيانات مباشرة"
+            correct: true
+          - text: "API في شبكتين (frontend + backend)"
+            correct: true
+          - text: "Redis و PostgreSQL في شبكة backend بدون إنترنت"
+            correct: true
+          - text: "جميع الخدمات تتشارك شبكة واحدة"
+      - q: "أي أمر يعرض إعدادات كومبوز المحلولة بالكامل؟"
+        type: input
+        a:
+          - "docker compose config"

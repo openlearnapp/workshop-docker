@@ -1,0 +1,223 @@
+version: 2
+number: 9
+title: "سرویس‌ها در داکر کامپوز"
+description: "تعریف، پیکربندی و کنترل سرویس‌ها با متغیرهای محیطی."
+sections:
+  - title: "پیکربندی جزئی سرویس"
+    explanation: |
+      هر سرویس در داکر کامپوز گزینه‌های پیکربندی متعددی دارد:
+
+      ```yaml
+      services:
+        api:
+          image: node:20-alpine          # ایمیج آماده
+          # یا
+          build:                          # ساخت ایمیج
+            context: ./api
+            dockerfile: Dockerfile.prod
+          container_name: my-api          # نام ثابت کانتینر
+          restart: unless-stopped         # سیاست راه‌اندازی مجدد
+          working_dir: /app               # دایرکتوری کاری
+          command: npm start              # بازنویسی دستور اجرا
+          user: "1000:1000"               # کاربر در کانتینر
+      ```
+
+      **سیاست‌های restart:**
+      - `no` — هرگز راه‌اندازی مجدد نکن (پیش‌فرض)
+      - `always` — همیشه راه‌اندازی مجدد کن
+      - `on-failure` — فقط هنگام خطا
+      - `unless-stopped` — همیشه، مگر به صورت دستی متوقف شده باشد
+    examples:
+      - q: "restart: unless-stopped"
+        a: "کانتینر به صورت خودکار راه‌اندازی مجدد می‌شود — هنگام خرابی، پس از راه‌اندازی مجدد داکر و غیره. فقط وقتی با 'docker compose stop' دستی متوقف کنید، خاموش می‌ماند."
+        labels: ["سرویس‌ها"]
+        rel:
+          - ["restart-policy", "راه‌اندازی مجدد خودکار", "دسترس‌پذیری بالا"]
+      - q: "تفاوت بین image و build چیست؟"
+        a: "image: از ایمیج آماده (مثلاً از Docker Hub) استفاده می‌کند. build: ایمیج را از Dockerfile محلی می‌سازد. می‌توان هر دو را ترکیب کرد: build می‌سازد و image نام می‌دهد."
+        labels: ["سرویس‌ها"]
+        rel:
+          - ["image-vs-build", "آماده در مقابل ساخت", "منابع سرویس"]
+      - q: "چه زمانی از container_name استفاده می‌شود؟"
+        a: "وقتی نام ثابتی لازم باشد (مثلاً برای ارجاع خارجی). معمولاً کامپوز نام را به صورت خودکار به شکل <پروژه>-<سرویس>-<شماره> تخصیص می‌دهد."
+        labels: ["سرویس‌ها"]
+        rel:
+          - ["container-name", "نام ثابت در مقابل خودکار", "نام‌گذاری کامپوز"]
+
+  - title: "متغیرهای محیطی"
+    explanation: |
+      چندین راه برای تنظیم متغیرهای محیطی وجود دارد:
+
+      **۱. مستقیم در YAML:**
+      ```yaml
+      services:
+        api:
+          environment:
+            - NODE_ENV=production
+            - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+      ```
+
+      **۲. به صورت نگاشت کلید-مقدار:**
+      ```yaml
+      services:
+        api:
+          environment:
+            NODE_ENV: production
+            DATABASE_URL: postgresql://user:pass@db:5432/mydb
+      ```
+
+      **۳. از یک فایل .env:**
+      ```yaml
+      services:
+        api:
+          env_file:
+            - .env
+            - .env.local
+      ```
+
+      **نکته:** از فایل‌های `.env` برای اطلاعات محرمانه استفاده و آن‌ها را به `.gitignore` اضافه کنید!
+    examples:
+      - q: "env_file: .env"
+        a: "همه متغیرها را از فایل .env در پوشه پروژه بارگذاری می‌کند. فرمت فایل: KEY=VALUE، یک متغیر در هر خط. عالی برای اطلاعات محرمانه."
+        labels: ["متغیرهای محیطی"]
+        rel:
+          - ["env-file", "متغیرهای خارجی", "مدیریت اطلاعات محرمانه"]
+      - q: "آیا می‌توان environment و env_file را ترکیب کرد؟"
+        a: "بله! متغیرهای 'environment' متغیرهای هم‌نام از 'env_file' را بازنویسی می‌کنند. بنابراین می‌توانید مقادیر پیش‌فرض در فایل .env و موارد خاص را در YAML داشته باشید."
+        labels: ["متغیرهای محیطی"]
+        rel:
+          - ["env-precedence", "بازنویسی", "ترتیب اولویت"]
+      - q: "چگونه از متغیرهای محیط میزبان در docker-compose.yaml استفاده کنیم؟"
+        a: "با سینتکس ${VARIABLE}: مثلاً 'image: postgres:${PG_VERSION:-16}'. مقدار از میزبان یا فایل .env در پوشه کامپوز می‌آید. :-16 مقدار پیش‌فرض است."
+        labels: ["متغیرهای محیطی"]
+        rel:
+          - ["variable-substitution", "متغیرهای میزبان", "مقادیر پیش‌فرض"]
+
+  - title: "بررسی سلامت و وابستگی‌ها"
+    explanation: |
+      `depends_on` به تنهایی اغلب کافی نیست — کانتینر اجرا شده اما سرویس داخلش هنوز آماده نیست. راه‌حل: **Healthcheck**:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U user"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+        api:
+          build: ./api
+          depends_on:
+            db:
+              condition: service_healthy
+      ```
+
+      حالا `api` فقط زمانی شروع می‌شود که PostgreSQL واقعاً **آماده** باشد — نه فقط وقتی کانتینر اجرا شده!
+    examples:
+      - q: "condition: service_healthy"
+        a: "سرویس فقط زمانی شروع می‌شود که بررسی سلامت سرویس وابسته موفق باشد. بسیار قابل اعتمادتر از 'depends_on' ساده."
+        labels: ["بررسی سلامت"]
+        rel:
+          - ["service-healthy", "واقعاً آماده", "بررسی آمادگی"]
+      - q: "test: ['CMD-SHELL', 'pg_isready -U user']"
+        a: "دستور بررسی سلامت: pg_isready بررسی می‌کند که آیا PostgreSQL اتصالات را می‌پذیرد. هر ۵ ثانیه بررسی شده و پس از ۵ بار شکست سرویس unhealthy علامت‌گذاری می‌شود."
+        labels: ["بررسی سلامت"]
+        rel:
+          - ["pg-isready", "بررسی PostgreSQL", "دستور Healthcheck"]
+      - q: "وقتی Healthcheck شکست بخورد چه اتفاقی می‌افتد؟"
+        a: "کانتینر به عنوان 'unhealthy' علامت‌گذاری می‌شود. سرویس‌هایی با 'condition: service_healthy' بیشتر صبر می‌کنند. داکر خودش کانتینر را راه‌اندازی مجدد نمی‌کند — برای آن سیاست restart لازم است."
+        labels: ["بررسی سلامت"]
+        rel:
+          - ["healthcheck-failure", "وضعیت unhealthy", "بدون راه‌اندازی مجدد خودکار"]
+
+  - title: "پروفایل‌ها و گروه‌بندی سرویس"
+    explanation: |
+      با **پروفایل‌ها** می‌توانید سرویس‌ها را گروه‌بندی و فقط موارد خاصی را اجرا کنید:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          # بدون پروفایل = همیشه اجرا می‌شود
+
+        api:
+          build: ./api
+          # بدون پروفایل = همیشه اجرا می‌شود
+
+        db:
+          image: postgres:16
+          # بدون پروفایل = همیشه اجرا می‌شود
+
+        adminer:
+          image: adminer
+          ports:
+            - "8081:8080"
+          profiles:
+            - debug
+
+        mailhog:
+          image: mailhog/mailhog
+          profiles:
+            - debug
+      ```
+
+      ```bash
+      # فقط سرویس‌های اصلی
+      docker compose up -d
+
+      # با ابزارهای اشکال‌زدایی
+      docker compose --profile debug up -d
+      ```
+    examples:
+      - q: "profiles: [debug]"
+        a: "سرویس فقط زمانی اجرا می‌شود که پروفایل 'debug' به صورت صریح فعال شود. عالی برای ابزارهایی که فقط در توسعه لازم هستند."
+        labels: ["پروفایل‌ها"]
+        rel:
+          - ["compose-profiles", "سرویس‌های اختیاری", "ابزارهای توسعه"]
+      - q: "docker compose --profile debug up -d"
+        a: "همه سرویس‌های بدون پروفایل به همراه سرویس‌های با پروفایل 'debug' را اجرا می‌کند. چندین پروفایل قابل ترکیب هستند: --profile debug --profile monitoring."
+        labels: ["پروفایل‌ها"]
+        rel:
+          - ["profile-activate", "حالت اشکال‌زدایی", "ابزارهای اختیاری"]
+      - q: "یک مورد استفاده خوب برای پروفایل‌ها چیست؟"
+        a: "ابزارهای توسعه (Adminer، Mailhog، pgAdmin) به عنوان پروفایل 'debug'. فقط در صورت نیاز اجرا می‌شوند و عملکرد عادی را تحت تأثیر قرار نمی‌دهند."
+        labels: ["پروفایل‌ها"]
+        rel:
+          - ["profile-usecase", "ابزارهای توسعه اختیاری", "جداسازی تمیز"]
+
+  - title: "آزمون دانش"
+    explanation: |
+      دانش خود را درباره سرویس‌های کامپوز بسنجید!
+    examples:
+      - q: "با چه گزینه‌ای سرویس متغیرهای محیطی خود را از فایل خارجی بارگذاری می‌کند؟"
+        type: input
+        a:
+          - "env_file"
+      - q: "'restart: unless-stopped' چه کاری انجام می‌دهد؟"
+        type: select
+        options:
+          - text: "کانتینر همیشه راه‌اندازی مجدد می‌شود، مگر به صورت دستی متوقف شده باشد"
+            correct: true
+          - text: "کانتینر هرگز راه‌اندازی مجدد نمی‌شود"
+          - text: "کانتینر پس از ۵ دقیقه خودکار متوقف می‌شود"
+          - text: "کانتینر فقط هنگام خطا راه‌اندازی مجدد می‌شود"
+      - q: "کدام عبارات درباره بررسی سلامت صحیح هستند؟"
+        type: multiple-choice
+        options:
+          - text: "بررسی می‌کنند که آیا سرویس واقعاً آماده است"
+            correct: true
+          - text: "condition: service_healthy منتظر Healthcheck می‌ماند"
+            correct: true
+          - text: "depends_on به تنهایی آمادگی را بررسی می‌کند"
+          - text: "Healthcheck ها با interval، timeout و retries قابل پیکربندی هستند"
+            correct: true
+      - q: "پروفایل‌های کامپوز برای چه کاری مفید هستند؟"
+        type: select
+        options:
+          - text: "برای اجرای سرویس‌های اختیاری فقط در صورت نیاز"
+            correct: true
+          - text: "برای سریع‌تر کردن کانتینرها"
+          - text: "برای فشرده‌سازی ایمیج‌ها"
+          - text: "برای رمزنگاری شبکه‌ها"
