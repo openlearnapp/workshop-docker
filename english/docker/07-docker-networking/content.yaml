@@ -1,0 +1,182 @@
+version: 2
+number: 7
+title: "Docker Networking"
+description: "Connect containers and understand networking fundamentals."
+sections:
+  - title: "Networking Basics"
+    explanation: |
+      Docker creates its own **virtual network** for containers. By default, there are three networks:
+
+      ```bash
+      docker network ls
+      ```
+
+      | Network | Type | Description |
+      |---|---|---|
+      | `bridge` | Bridge | Default for containers (isolated) |
+      | `host` | Host | Container uses host network directly |
+      | `none` | None | No network — completely isolated |
+
+      In the **bridge** network, every container can access the internet, but containers **cannot find each other by name** — for that you need a custom network.
+    examples:
+      - q: "docker network ls"
+        a: "Lists all Docker networks: bridge, host, and none are always present, plus any custom-created networks."
+        labels: ["Network"]
+        rel:
+          - ["network-ls", "network overview", "default networks"]
+      - q: "What is the bridge network?"
+        a: "The default network for containers. Containers in it can access the internet but cannot reach each other by name — only by IP address."
+        labels: ["Network"]
+        rel:
+          - ["bridge-network", "default network", "isolated"]
+      - q: "When do you use the host network?"
+        a: "When maximum network performance is needed — the container shares the network stack with the host. No port mapping needed, but also no network isolation."
+        labels: ["Network"]
+        rel:
+          - ["host-network", "maximum performance", "no isolation"]
+
+  - title: "Creating Custom Networks"
+    explanation: |
+      Custom networks are the key to **container communication**:
+
+      ```bash
+      # Create a network
+      docker network create my-net
+
+      # Start containers in the network
+      docker run -d --name web --network my-net nginx
+      docker run -d --name db --network my-net postgres:16
+      ```
+
+      **The big advantage:** In a custom network, containers can **reach each other by name**! The `web` container can use `db` as a hostname:
+
+      ```
+      postgresql://user:pass@db:5432/mydb
+      ```
+
+      Docker has a built-in **DNS server** that resolves container names to IP addresses.
+    examples:
+      - q: "docker network create my-net"
+        a: "Creates a new custom bridge network. Containers in it can find each other by name — thanks to Docker's built-in DNS."
+        labels: ["Network"]
+        rel:
+          - ["network-create", "custom network", "DNS resolution"]
+      - q: "Why does container name as hostname only work in custom networks?"
+        a: "The default bridge network has no DNS service for legacy reasons. Custom networks automatically enable Docker's internal DNS."
+        labels: ["Network"]
+        rel:
+          - ["custom-network-dns", "DNS only in custom networks", "legacy bridge"]
+      - q: "docker network connect my-net existing-container"
+        a: "Connects an already running container to a network — without restarting it. A container can be in multiple networks simultaneously."
+        labels: ["Network"]
+        rel:
+          - ["network-connect", "connect after creation", "multi-network"]
+
+  - title: "Container Communication"
+    explanation: |
+      A practical example — **web app + database**:
+
+      ```bash
+      # Create network
+      docker network create app-net
+
+      # Start PostgreSQL
+      docker run -d --name postgres \
+        --network app-net \
+        -e POSTGRES_PASSWORD=secret \
+        postgres:16
+
+      # Start app that connects to postgres
+      docker run -d --name app \
+        --network app-net \
+        -e DATABASE_URL=postgresql://postgres:secret@postgres:5432/postgres \
+        -p 3000:3000 \
+        my-app
+      ```
+
+      Note: `@postgres:5432` — the hostname is the **container name**! No port publishing needed for internal communication.
+    examples:
+      - q: "Do you need -p for communication between containers in the same network?"
+        a: "No! -p (port mapping) is only for access from outside (host → container). Containers in the same network reach each other directly on all ports."
+        labels: ["Communication"]
+        rel:
+          - ["internal-ports", "no port mapping internally", "container-to-container"]
+      - q: "What happens when two containers are in different networks?"
+        a: "They cannot communicate with each other — networks are isolated. You would need to add a container to both networks or run them in the same network."
+        labels: ["Communication"]
+        rel:
+          - ["network-isolation", "network separation", "security"]
+      - q: "Why use container names instead of IP addresses?"
+        a: "Container IPs can change (e.g., on restart). The name stays stable and is automatically resolved to the current IP by Docker DNS."
+        labels: ["Communication"]
+        rel:
+          - ["dns-vs-ip", "stable names", "DNS resolution"]
+
+  - title: "Inspecting and Cleaning Up Networks"
+    explanation: |
+      Debugging and cleaning up networks:
+
+      ```bash
+      # Show network details (including connected containers)
+      docker network inspect my-net
+
+      # Remove container from network
+      docker network disconnect my-net web
+
+      # Delete network (only if no containers are connected)
+      docker network rm my-net
+
+      # Remove all unused networks
+      docker network prune
+      ```
+
+      **Tip:** `docker network inspect` shows you the **IP addresses of all containers** in the network — perfect for debugging connection issues.
+    examples:
+      - q: "docker network inspect my-net"
+        a: "Shows all details: subnet, gateway, connected containers with their IP addresses, and network configuration."
+        labels: ["Diagnostics"]
+        rel:
+          - ["network-inspect", "see container IPs", "network diagnostics"]
+      - q: "docker network prune"
+        a: "Removes all networks not used by any container. The default networks (bridge, host, none) are always preserved."
+        labels: ["Diagnostics"]
+        rel:
+          - ["network-prune", "unused networks", "cleanup"]
+      - q: "How do you test the connection between two containers?"
+        a: "With 'docker exec web ping db' or 'docker exec web curl http://db:80'. If the container doesn't have ping, use a debug container: docker run --rm --network my-net alpine ping db"
+        labels: ["Diagnostics"]
+        rel:
+          - ["network-debug", "connection test", "ping/curl"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker networking!
+    examples:
+      - q: "What command do you use to create a new Docker network?"
+        type: input
+        a:
+          - "docker network create"
+      - q: "Why create a custom network instead of using the default bridge?"
+        type: select
+        options:
+          - text: "Because custom networks offer DNS resolution via container names"
+            correct: true
+          - text: "Because the default bridge network is slower"
+          - text: "Because containers in the default bridge have no internet"
+          - text: "Because the default bridge is automatically deleted"
+      - q: "Which statements about Docker networks are correct?"
+        type: multiple-choice
+        options:
+          - text: "Containers in the same network don't need port mapping"
+            correct: true
+          - text: "Container names serve as hostnames in custom networks"
+            correct: true
+          - text: "Docker has a built-in DNS server"
+            correct: true
+          - text: "Containers in different networks can communicate freely"
+      - q: "What does the connection URL to a PostgreSQL container named 'db' look like?"
+        type: input
+        a:
+          - "postgresql://user:pass@db:5432"
+          - "postgres://user:pass@db:5432"
+          - "db:5432"

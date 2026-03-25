@@ -1,0 +1,241 @@
+version: 2
+number: 12
+title: "Best Practices & Production"
+description: "Optimize Docker and Compose for production use."
+sections:
+  - title: "Dockerfile Best Practices"
+    explanation: |
+      A good Dockerfile makes the difference between 2 GB and 50 MB:
+
+      **1. Use minimal base images:**
+      ```dockerfile
+      # Bad: 1.1 GB
+      FROM ubuntu:22.04
+      # Better: 180 MB
+      FROM python:3.12-slim
+      # Best: 50 MB
+      FROM python:3.12-alpine
+      ```
+
+      **2. Optimize layer caching:**
+      ```dockerfile
+      # Rarely changed → top
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      # Frequently changed → bottom
+      COPY . .
+      ```
+
+      **3. Combine RUN commands:**
+      ```dockerfile
+      # Bad: 3 layers
+      RUN apt-get update
+      RUN apt-get install -y curl
+      RUN rm -rf /var/lib/apt/lists/*
+
+      # Good: 1 layer + cleaned up
+      RUN apt-get update && \
+          apt-get install -y --no-install-recommends curl && \
+          rm -rf /var/lib/apt/lists/*
+      ```
+    examples:
+      - q: "Why --no-install-recommends with apt-get?"
+        a: "Installs only the explicitly specified packages, no 'recommended' additional packages. Often saves 50-100 MB per installation."
+        labels: ["Best Practices"]
+        rel:
+          - ["apt-no-recommends", "package minimization", "image size"]
+      - q: "Why rm -rf /var/lib/apt/lists/* at the end?"
+        a: "Deletes the apt cache in the same layer. Since Docker layers are immutable, cleanup must happen in the SAME RUN command — otherwise the cache remains in the previous layer."
+        labels: ["Best Practices"]
+        rel:
+          - ["apt-cleanup", "cache in same layer", "layer understanding"]
+      - q: "In what order should COPY instructions be placed?"
+        a: "Rarely changed files first (requirements.txt, package.json), frequently changed code last. This lets Docker use the layer cache optimally."
+        labels: ["Best Practices"]
+        rel:
+          - ["copy-order", "rare → frequent", "cache strategy"]
+
+  - title: "Security"
+    explanation: |
+      Docker containers run as **root** by default — that's a security risk!
+
+      ```dockerfile
+      # Create unprivileged user
+      RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+      # Run as this user
+      USER appuser
+
+      # Read-only filesystem
+      # docker run --read-only my-app
+      ```
+
+      **More security tips:**
+      - Update images regularly (security patches!)
+      - No secrets in images (no `ENV PASSWORD=xyz` in Dockerfile!)
+      - Only expose required ports
+      - Use `docker scan` or Trivy for vulnerability scans
+      - Use images from trusted sources (Official Images, Verified Publishers)
+
+      **Surprising:** In 2023, known security vulnerabilities were found in 87% of public Docker images!
+    examples:
+      - q: "USER appuser"
+        a: "From this line on, all commands run as 'appuser' instead of root. If the container is compromised, the attacker only has limited privileges."
+        labels: ["Security"]
+        rel:
+          - ["non-root-user", "least privilege", "container hardening"]
+      - q: "Where should secrets like passwords be stored?"
+        a: "In .env files (not in Git!), Docker Secrets, or an external secret manager (Vault, AWS Secrets Manager). NEVER in the Dockerfile or image!"
+        labels: ["Security"]
+        rel:
+          - ["secret-management", "no secrets in images", "env files + Vault"]
+      - q: "docker run --read-only my-app"
+        a: "Starts the container with a read-only filesystem. The container can only write to mounted volumes — prevents attackers from modifying files in the container."
+        labels: ["Security"]
+        rel:
+          - ["readonly-filesystem", "write protection", "reduce attack surface"]
+
+  - title: "Compose for Production"
+    explanation: |
+      Production Compose files differ from development setups:
+
+      ```yaml
+      services:
+        api:
+          build:
+            context: ./api
+            dockerfile: Dockerfile.prod
+          restart: unless-stopped
+          deploy:
+            resources:
+              limits:
+                cpus: "1.0"
+                memory: 512M
+              reservations:
+                cpus: "0.25"
+                memory: 128M
+          logging:
+            driver: json-file
+            options:
+              max-size: "10m"
+              max-file: "3"
+          healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+      ```
+
+      **Important production features:**
+      - **Resource limits** — Prevents a service from consuming the entire server
+      - **Logging limits** — Prevents logs from filling the disk
+      - **Healthchecks** — Detects unhealthy containers
+      - **Restart policy** — Automatic recovery
+    examples:
+      - q: "deploy.resources.limits.memory: 512M"
+        a: "Limits memory usage to 512 MB. If the container uses more, it is stopped by Docker (OOM kill). Prevents a service from bringing down the entire server."
+        labels: ["Production"]
+        rel:
+          - ["memory-limit", "OOM protection", "resource management"]
+      - q: "logging.options.max-size: 10m"
+        a: "Limits each log file to 10 MB. With max-file: 3, a maximum of 3 files are rotated = at most 30 MB of logs. Without this limit, logs can fill the entire disk!"
+        labels: ["Production"]
+        rel:
+          - ["log-rotation", "protect disk", "log management"]
+      - q: "healthcheck.start_period: 40s"
+        a: "Gives the container 40 seconds of startup time before healthcheck failures are counted. Useful for apps that perform migrations or caching on startup."
+        labels: ["Production"]
+        rel:
+          - ["start-period", "startup tolerance", "slow starts"]
+
+  - title: "Useful Docker Workflows"
+    explanation: |
+      Here are some workflows that save time in daily work:
+
+      **Automatic cleanup:**
+      ```bash
+      # Remove everything unused once a week
+      docker system prune -af --volumes
+      ```
+
+      **Image tagging strategy:**
+      ```bash
+      # Always tag specifically
+      docker build -t my-app:1.2.3 -t my-app:latest .
+      ```
+
+      **Compose Watch (development):**
+      ```yaml
+      services:
+        api:
+          build: ./api
+          develop:
+            watch:
+              - action: sync
+                path: ./api/src
+                target: /app/src
+              - action: rebuild
+                path: ./api/package.json
+      ```
+
+      ```bash
+      docker compose watch
+      ```
+
+      **Compose Watch** automatically synchronizes code changes into the container — faster than bind mounts!
+    examples:
+      - q: "docker compose watch"
+        a: "Watches files for changes and automatically synchronizes them into the container or rebuilds the image. A modern replacement for bind mounts in development."
+        labels: ["Workflows"]
+        rel:
+          - ["compose-watch", "auto sync", "hot reload"]
+      - q: "docker system prune -af --volumes"
+        a: "Removes ALL unused images (including untagged), stopped containers, unused networks, and volumes. -a = all, -f = without confirmation. Use regularly!"
+        labels: ["Workflows"]
+        rel:
+          - ["full-prune", "complete cleanup", "free storage"]
+      - q: "Why double tagging (version + latest)?"
+        a: "You can always reference the exact version (1.2.3) AND have 'latest' as a pointer to the newest version. Rollback to a specific version is possible at any time."
+        labels: ["Workflows"]
+        rel:
+          - ["double-tagging", "version + latest", "rollback capability"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker best practices!
+    examples:
+      - q: "Why should containers not run as root?"
+        type: input
+        a:
+          - "Sicherheit"
+          - "sicherheit"
+          - "Security"
+          - "security"
+          - "Least Privilege"
+      - q: "What happens when a container exceeds its memory limit?"
+        type: select
+        options:
+          - text: "Docker stops the container (OOM kill)"
+            correct: true
+          - text: "Docker automatically gives it more memory"
+          - text: "The container becomes slower"
+          - text: "Nothing — limits are just recommendations"
+      - q: "Which best practices apply to Dockerfiles?"
+        type: multiple-choice
+        options:
+          - text: "Use minimal base images (slim, alpine)"
+            correct: true
+          - text: "Combine RUN commands and clean up"
+            correct: true
+          - text: "Copy rarely changed files first"
+            correct: true
+          - text: "Store secrets in ENV instructions"
+      - q: "What does docker compose watch do?"
+        type: select
+        options:
+          - text: "Automatically synchronizes file changes into containers"
+            correct: true
+          - text: "Monitors CPU usage"
+          - text: "Shows container logs in real time"
+          - text: "Checks if images are up to date"

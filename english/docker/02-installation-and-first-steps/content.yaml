@@ -1,0 +1,175 @@
+version: 2
+number: 2
+title: "Installation & First Steps"
+description: "Install Docker and run your first container."
+sections:
+  - title: "Installing Docker"
+    explanation: |
+      Docker is available for all major operating systems. The easiest way is **Docker Desktop**:
+
+      - **macOS:** Download and install Docker Desktop from docker.com
+      - **Windows:** Install Docker Desktop with WSL2 backend
+      - **Linux:** Install Docker Engine directly via the package manager
+
+      After installation, verify everything works with a simple command:
+
+      ```bash
+      docker --version
+      ```
+
+      If a version number appears, Docker is ready!
+    examples:
+      - q: "docker --version"
+        a: "Displays the installed Docker version, e.g., 'Docker version 24.0.7, build afdd53b'. This confirms that Docker is correctly installed."
+        labels: ["Installation"]
+        rel:
+          - ["docker-version", "version check", "verify installation"]
+      - q: "docker info"
+        a: "Displays detailed information about the Docker installation: number of containers, images, storage location, operating system, kernel version, and more."
+        labels: ["Installation"]
+        rel:
+          - ["docker-info", "system details", "diagnostics"]
+      - q: "What backend does Docker Desktop use on Windows?"
+        a: "WSL2 (Windows Subsystem for Linux 2) — this allows Linux containers to run natively on Windows without a full VM."
+        labels: ["Installation"]
+        rel:
+          - ["wsl2-backend", "Windows integration", "Linux compatibility"]
+
+  - title: "Your First Container: Hello World"
+    explanation: |
+      The traditional first step — start the **hello-world** container:
+
+      ```bash
+      docker run hello-world
+      ```
+
+      What happens?
+      1. Docker searches for the `hello-world` image locally
+      2. Doesn't find it → downloads it from Docker Hub
+      3. Creates a container from the image
+      4. Starts the container
+      5. The container outputs a message and exits
+
+      All of this happens in **under 2 seconds**. Imagine having to boot up a VM for that!
+    examples:
+      - q: "docker run hello-world"
+        a: "Downloads the hello-world image (on the first run), creates a container, runs it, and displays a welcome message."
+        labels: ["First Steps"]
+        rel:
+          - ["hello-world-run", "first container", "Docker intro"]
+      - q: "What does 'Unable to find image locally' mean?"
+        a: "The image doesn't exist on your machine yet. Docker automatically downloads it from Docker Hub — this is normal behavior on the first run."
+        labels: ["First Steps"]
+        rel:
+          - ["image-pull-auto", "automatic download", "Docker Hub"]
+      - q: "What happens to the container after running hello-world?"
+        a: "The container exits immediately after output. However, it still exists with the status 'exited' and can be seen with 'docker ps -a'."
+        labels: ["First Steps"]
+        rel:
+          - ["container-exit", "exited container", "lifecycle"]
+
+  - title: "Starting a Real Service"
+    explanation: |
+      Now it gets exciting — start an **Nginx web server**:
+
+      ```bash
+      docker run -d -p 8080:80 --name my-web nginx
+      ```
+
+      The flags mean:
+      - `-d` — **Detached Mode**: Container runs in the background
+      - `-p 8080:80` — **Port Mapping**: Host port 8080 → Container port 80
+      - `--name my-web` — Gives the container a name
+      - `nginx` — The image to use
+
+      Now open `http://localhost:8080` in your browser — you'll see the Nginx welcome page! A web server in **one command**.
+    examples:
+      - q: "docker run -d -p 8080:80 --name my-web nginx"
+        a: "Starts an Nginx container in the background, maps port 8080 (host) to port 80 (container), and names it 'my-web'."
+        labels: ["Starting Containers"]
+        rel:
+          - ["nginx-run", "start web server", "port mapping"]
+      - q: "What does -p 8080:80 mean?"
+        a: "Port mapping: Requests to port 8080 on your machine (host) are forwarded to port 80 in the container. Format: HOST:CONTAINER."
+        labels: ["Starting Containers"]
+        rel:
+          - ["port-mapping", "HOST:CONTAINER", "network access"]
+      - q: "What happens without the -d flag?"
+        a: "The container runs in the foreground and blocks your terminal. You see the logs directly but can't enter any more commands. Ctrl+C stops the container."
+        labels: ["Starting Containers"]
+        rel:
+          - ["detached-vs-foreground", "background vs. foreground", "container mode"]
+
+  - title: "Stopping and Cleaning Up Containers"
+    explanation: |
+      After experimenting, you should clean up:
+
+      ```bash
+      # Stop container
+      docker stop my-web
+
+      # Remove container
+      docker rm my-web
+
+      # Or both in one step
+      docker rm -f my-web
+      ```
+
+      **Important:** Stopped containers still take up storage! Regular cleanup is good practice.
+
+      ```bash
+      # Remove all stopped containers
+      docker container prune
+      ```
+    examples:
+      - q: "docker stop my-web"
+        a: "Sends a SIGTERM signal to the container 'my-web' and gives it 10 seconds to shut down gracefully. After that, SIGKILL is sent."
+        labels: ["Container Management"]
+        rel:
+          - ["docker-stop", "SIGTERM → SIGKILL", "graceful shutdown"]
+      - q: "docker rm -f my-web"
+        a: "Forces removal of the container 'my-web' — even if it's still running. Combines stop + rm in one step."
+        labels: ["Container Management"]
+        rel:
+          - ["docker-rm-force", "force remove", "quick cleanup"]
+      - q: "docker container prune"
+        a: "Removes all stopped containers at once. Asks for confirmation first. Saves storage space and keeps the container list clean."
+        labels: ["Container Management"]
+        rel:
+          - ["container-prune", "cleanup", "free storage"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker installation and first steps!
+    examples:
+      - q: "What command do you use to check if Docker is installed?"
+        type: input
+        a:
+          - "docker --version"
+          - "docker version"
+      - q: "What does the -d flag mean in docker run?"
+        type: select
+        options:
+          - text: "Detached Mode — container runs in the background"
+            correct: true
+          - text: "Debug Mode — shows errors"
+          - text: "Delete Mode — deletes after completion"
+          - text: "Download Mode — only downloads the image"
+      - q: "Which statements about port mapping are correct?"
+        type: multiple-choice
+        options:
+          - text: "The format is HOST:CONTAINER"
+            correct: true
+          - text: "-p 8080:80 forwards host port 8080 to container port 80"
+            correct: true
+          - text: "Port mapping is always automatic"
+          - text: "Without -p the container is not accessible from outside"
+            correct: true
+      - q: "What does docker container prune do?"
+        type: select
+        options:
+          - text: "Removes all stopped containers"
+            correct: true
+          - text: "Stops all running containers"
+          - text: "Deletes all images"
+          - text: "Restarts all containers"

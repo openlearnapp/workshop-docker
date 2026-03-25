@@ -1,0 +1,186 @@
+version: 2
+number: 4
+title: "Writing Dockerfiles"
+description: "Create and optimize your own Docker images with a Dockerfile."
+sections:
+  - title: "Your First Dockerfile"
+    explanation: |
+      A Dockerfile is a **text file without a file extension** that describes step by step how an image is built.
+
+      Here's a simple example for a Python app:
+
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install -r requirements.txt
+      COPY . .
+      EXPOSE 5000
+      CMD ["python", "app.py"]
+      ```
+
+      Each line is an **instruction**:
+      - `FROM` — Base image (always the first line!)
+      - `WORKDIR` — Working directory in the container
+      - `COPY` — Copy files from host into the container
+      - `RUN` — Execute a command during the build
+      - `EXPOSE` — Document a port (doesn't open it!)
+      - `CMD` — Startup command when the container starts
+    examples:
+      - q: "FROM python:3.12-slim"
+        a: "Defines the base image. All subsequent instructions build on top of it. Must always be the first instruction in the Dockerfile."
+        labels: ["Dockerfile"]
+        rel:
+          - ["from-anweisung", "set base image", "Dockerfile start"]
+      - q: "Why is requirements.txt copied BEFORE the rest of the code?"
+        a: "For layer caching: requirements.txt rarely changes. If only code is changed, Docker can use the pip install layer from cache instead of reinstalling everything."
+        labels: ["Dockerfile"]
+        rel:
+          - ["copy-reihenfolge", "cache optimization", "build strategy"]
+      - q: "What is the difference between RUN and CMD?"
+        a: "RUN is executed during the image build and creates a layer. CMD defines the default command at container start — it's only executed at runtime."
+        labels: ["Dockerfile"]
+        rel:
+          - ["run-vs-cmd", "build vs. runtime", "Dockerfile instructions"]
+
+  - title: "Building an Image"
+    explanation: |
+      With `docker build` you create an image from a Dockerfile:
+
+      ```bash
+      # Build and tag an image
+      docker build -t my-app:1.0 .
+
+      # Build with a different Dockerfile
+      docker build -t my-app:1.0 -f Dockerfile.prod .
+      ```
+
+      The **dot at the end** is the **build context** — the folder whose files Docker can access for `COPY`.
+
+      **Tip:** Create a `.dockerignore` file to exclude unnecessary files:
+
+      ```
+      node_modules
+      .git
+      .env
+      __pycache__
+      ```
+    examples:
+      - q: "docker build -t my-app:1.0 ."
+        a: "Builds an image from the Dockerfile in the current directory and gives it the tag 'my-app:1.0'. The dot defines the build context."
+        labels: ["Build"]
+        rel:
+          - ["docker-build", "create image", "assign tag"]
+      - q: "What is the build context?"
+        a: "The folder that Docker uses as a file source during the build. All COPY/ADD instructions reference this folder. It is sent entirely to the Docker daemon."
+        labels: ["Build"]
+        rel:
+          - ["build-context", "file source for COPY", "build foundation"]
+      - q: "Why do you need a .dockerignore?"
+        a: "It prevents unnecessary files (node_modules, .git, .env) from entering the build context — this speeds up the build and prevents accidentally including sensitive data."
+        labels: ["Build"]
+        rel:
+          - ["dockerignore", "build optimization", "security"]
+
+  - title: "Important Dockerfile Instructions"
+    explanation: |
+      Beyond the basics, there are more useful instructions:
+
+      | Instruction | Function | Example |
+      |---|---|---|
+      | `ENV` | Set environment variable | `ENV NODE_ENV=production` |
+      | `ARG` | Build argument (only during build) | `ARG VERSION=1.0` |
+      | `ENTRYPOINT` | Fixed startup command | `ENTRYPOINT ["python"]` |
+      | `HEALTHCHECK` | Check container health | `HEALTHCHECK CMD curl -f http://localhost/` |
+      | `USER` | Switch user | `USER appuser` |
+      | `LABEL` | Add metadata | `LABEL version="1.0"` |
+
+      **CMD vs. ENTRYPOINT:**
+      - `CMD` can be overridden with `docker run`
+      - `ENTRYPOINT` stays fixed, `CMD` provides default arguments for it
+    examples:
+      - q: "ENV NODE_ENV=production"
+        a: "Sets the environment variable NODE_ENV to 'production' — it is available both during the build and at runtime in the container."
+        labels: ["Dockerfile"]
+        rel:
+          - ["env-anweisung", "environment variable", "build + runtime"]
+      - q: "HEALTHCHECK --interval=30s CMD curl -f http://localhost:5000/health"
+        a: "Docker checks the URL every 30 seconds. If the check fails, the container is marked as 'unhealthy' — useful for orchestration."
+        labels: ["Dockerfile"]
+        rel:
+          - ["healthcheck", "container health", "monitoring"]
+      - q: "Why should you use USER instead of root?"
+        a: "For security reasons: if a container running as root is compromised, the attacker has root privileges. An unprivileged user limits the damage."
+        labels: ["Dockerfile"]
+        rel:
+          - ["user-security", "least privilege", "container security"]
+
+  - title: "Multi-Stage Builds"
+    explanation: |
+      Multi-stage builds are a **game changer** for image sizes:
+
+      ```dockerfile
+      # Stage 1: Build
+      FROM node:20 AS builder
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci
+      COPY . .
+      RUN npm run build
+
+      # Stage 2: Production
+      FROM nginx:alpine
+      COPY --from=builder /app/dist /usr/share/nginx/html
+      EXPOSE 80
+      CMD ["nginx", "-g", "daemon off;"]
+      ```
+
+      **Result:** The final image contains **only Nginx + the built files** — no Node.js, no npm, no source code. Instead of 1 GB, only ~25 MB!
+    examples:
+      - q: "COPY --from=builder /app/dist /usr/share/nginx/html"
+        a: "Copies files from the build stage (named 'builder') into the final image. Only the build artifacts are included, not the build tools."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["copy-from-stage", "stage artifacts", "size optimization"]
+      - q: "How many images does a multi-stage build produce?"
+        a: "Only one — the final image. All intermediate stages are discarded after the build. The result is a lean production image."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["multi-stage-result", "one final image", "intermediate stages discarded"]
+      - q: "Why is the final image in a multi-stage build so much smaller?"
+        a: "Because build tools (compiler, npm, node_modules) only exist in the build stage. The production image contains only the runtime and the finished artifacts."
+        labels: ["Multi-Stage"]
+        rel:
+          - ["multi-stage-size", "build tools removed", "production optimization"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Dockerfiles!
+    examples:
+      - q: "Which instruction must always be first in a Dockerfile?"
+        type: input
+        a:
+          - "FROM"
+      - q: "What happens with EXPOSE 5000?"
+        type: select
+        options:
+          - text: "It documents the port but doesn't open it"
+            correct: true
+          - text: "The port is automatically exposed externally"
+          - text: "The container listens on port 5000"
+          - text: "It blocks port 5000 on the host"
+      - q: "Which statements about multi-stage builds are correct?"
+        type: multiple-choice
+        options:
+          - text: "The final image contains only the last stage"
+            correct: true
+          - text: "They significantly reduce image size"
+            correct: true
+          - text: "You need multiple Dockerfiles"
+          - text: "COPY --from copies files from another stage"
+            correct: true
+      - q: "Which file prevents unnecessary files from entering the build?"
+        type: input
+        a:
+          - ".dockerignore"
+          - "dockerignore"

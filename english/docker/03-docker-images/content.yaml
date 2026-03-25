@@ -1,0 +1,178 @@
+version: 2
+number: 3
+title: "Understanding Docker Images"
+description: "What are images, how to find them, and how do layers work?"
+sections:
+  - title: "What is a Docker Image?"
+    explanation: |
+      A Docker image is a **read-only package** that contains everything an application needs to run:
+
+      - Operating system base (e.g., Alpine Linux, Ubuntu)
+      - Runtime (e.g., Node.js, Python)
+      - Application code
+      - Dependencies and libraries
+      - Configuration files
+
+      Images are like **templates** — you can create as many containers as you want from one image, and each container is identical.
+
+      **Surprising fact:** The Alpine Linux image is only **5 MB**! A complete operating system smaller than a photo.
+    examples:
+      - q: "Why are images read-only?"
+        a: "So that every container started from the image has exactly the same base. Changes only happen in a writable layer of the container."
+        labels: ["Images"]
+        rel:
+          - ["image-readonly", "consistency guarantee", "immutability"]
+      - q: "How large is the Alpine Linux image?"
+        a: "Only about 5 MB — it contains a minimal Linux system and is frequently used as a base for lean Docker images."
+        labels: ["Images"]
+        rel:
+          - ["alpine-size", "5 MB minimal Linux", "base image"]
+      - q: "Can an image be changed after creation?"
+        a: "No — images are immutable. For changes, you must build a new image. Containers add a writable layer on top."
+        labels: ["Images"]
+        rel:
+          - ["image-immutable", "immutable", "container layer"]
+
+  - title: "Finding and Downloading Images"
+    explanation: |
+      **Docker Hub** is the default registry with over 100,000 images:
+
+      ```bash
+      # Search for images
+      docker search python
+
+      # Download an image
+      docker pull python:3.12
+
+      # List all local images
+      docker images
+      ```
+
+      **Tags** are version labels:
+      - `python:3.12` — Python version 3.12
+      - `python:3.12-slim` — Slim variant without unnecessary packages
+      - `python:3.12-alpine` — Based on Alpine Linux (smallest)
+      - `python:latest` — Latest version (warning: can change!)
+
+      **Tip:** Always use **specific tags** instead of `latest` — otherwise you might get a different version with every pull!
+    examples:
+      - q: "docker pull python:3.12-slim"
+        a: "Downloads the Python 3.12 image in the slim variant — contains Python without unnecessary packages. Significantly smaller than the standard image."
+        labels: ["Images"]
+        rel:
+          - ["docker-pull", "download image", "tag variants"]
+      - q: "docker images"
+        a: "Lists all locally stored images with repository name, tag, image ID, creation date, and size."
+        labels: ["Images"]
+        rel:
+          - ["docker-images-list", "local images", "overview"]
+      - q: "Why should you not use the 'latest' tag?"
+        a: "Because 'latest' can change with every pull. In production, you want reproducibility — specific tags like '3.12' guarantee the same version every time."
+        labels: ["Images"]
+        rel:
+          - ["latest-vermeiden", "reproducibility", "best practice"]
+
+  - title: "Understanding Image Layers"
+    explanation: |
+      Docker images consist of **layers**. Each instruction in a Dockerfile creates a layer:
+
+      ```
+      Layer 4: COPY app.py /app/          ← your code
+      Layer 3: RUN pip install flask       ← dependencies
+      Layer 2: RUN apt-get update          ← system packages
+      Layer 1: FROM python:3.12-slim       ← base image
+      ```
+
+      **Why layers?**
+      - **Caching:** Unchanged layers are reused
+      - **Sharing:** Multiple images can share the same base layers
+      - **Efficiency:** On rebuild, only layers from the changed one onwards are rebuilt
+
+      If you only change `app.py`, Docker only needs to rebuild Layer 4 — Layers 1–3 come from cache!
+    examples:
+      - q: "docker history nginx"
+        a: "Shows all layers of the nginx image with size, creation time, and the command that created each layer."
+        labels: ["Layers"]
+        rel:
+          - ["docker-history", "layer overview", "image inspection"]
+      - q: "Why is the order of instructions in the Dockerfile important?"
+        a: "Because of layer caching: instructions that rarely change (e.g., apt-get install) should be at the top, frequently changed ones (e.g., COPY code) at the bottom — this optimizes cache usage."
+        labels: ["Layers"]
+        rel:
+          - ["layer-reihenfolge", "cache optimization", "build performance"]
+      - q: "What happens when two images use the same base?"
+        a: "The shared layers are stored only once on disk — Docker shares them automatically. This saves considerable storage space."
+        labels: ["Layers"]
+        rel:
+          - ["layer-sharing", "storage efficiency", "shared base"]
+
+  - title: "Cleaning Up Images"
+    explanation: |
+      Images accumulate quickly. Here's how to clean up:
+
+      ```bash
+      # Delete a specific image
+      docker rmi python:3.12
+
+      # Remove all unused images
+      docker image prune
+
+      # Clean up EVERYTHING (images, containers, networks)
+      docker system prune
+
+      # Show storage usage
+      docker system df
+      ```
+
+      **Warning:** `docker system prune` deletes everything not used by a running container! Use it carefully.
+    examples:
+      - q: "docker rmi python:3.12"
+        a: "Deletes the image python:3.12 from your system. Fails if containers still exist from it — remove containers first."
+        labels: ["Cleanup"]
+        rel:
+          - ["docker-rmi", "delete image", "free storage"]
+      - q: "docker system df"
+        a: "Shows Docker's storage usage: how much space images, containers, volumes, and build cache occupy."
+        labels: ["Cleanup"]
+        rel:
+          - ["docker-system-df", "storage overview", "diagnostics"]
+      - q: "What are 'dangling images'?"
+        a: "Images without a tag (shown as <none>:<none>) — created when rebuilding images and the old image no longer has a tag. Can be removed with 'docker image prune'."
+        labels: ["Cleanup"]
+        rel:
+          - ["dangling-images", "orphaned images", "cleanup"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Docker images!
+    examples:
+      - q: "What command do you use to download an image?"
+        type: input
+        a:
+          - "docker pull"
+      - q: "What is the advantage of image layers?"
+        type: select
+        options:
+          - text: "Caching — only changed layers are rebuilt"
+            correct: true
+          - text: "Layers make images larger"
+          - text: "Each layer is its own container"
+          - text: "Layers only exist on Docker Hub"
+      - q: "Which statements about image tags are correct?"
+        type: multiple-choice
+        options:
+          - text: "'latest' can change with every pull"
+            correct: true
+          - text: "'slim' is a smaller variant without unnecessary packages"
+            correct: true
+          - text: "Tags are optional and not important"
+          - text: "'alpine' is based on a minimal Linux system"
+            correct: true
+      - q: "What does docker system prune do?"
+        type: select
+        options:
+          - text: "Removes all unused images, containers, and networks"
+            correct: true
+          - text: "Only deletes stopped containers"
+          - text: "Removes all running containers"
+          - text: "Resets Docker to factory settings"

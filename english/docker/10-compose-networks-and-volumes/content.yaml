@@ -1,0 +1,223 @@
+version: 2
+number: 10
+title: "Compose: Networks & Volumes"
+description: "Configure networks and volumes in Docker Compose."
+sections:
+  - title: "Networks in Compose"
+    explanation: |
+      Docker Compose automatically creates a **default network**, but you can also define your own:
+
+      ```yaml
+      services:
+        web:
+          image: nginx:alpine
+          networks:
+            - frontend
+
+        api:
+          build: ./api
+          networks:
+            - frontend
+            - backend
+
+        db:
+          image: postgres:16
+          networks:
+            - backend
+
+      networks:
+        frontend:
+        backend:
+      ```
+
+      **Result:** `web` can talk to `api`, `db` can talk to `api`, but `web` **cannot directly** talk to `db`! The `api` is the **bridge** between frontend and backend.
+
+      This is an important **security pattern** — the database is not directly accessible from the frontend.
+    examples:
+      - q: "Why separate frontend and backend networks?"
+        a: "Security through isolation: the web server cannot reach the database directly — only through the API. A compromised web server has no database access."
+        labels: ["Networks"]
+        rel:
+          - ["network-segmentation", "security through separation", "defense in depth"]
+      - q: "Can a service be in multiple networks?"
+        a: "Yes! That's the core of network segmentation. The API service is in both frontend AND backend and serves as the only gateway."
+        labels: ["Networks"]
+        rel:
+          - ["multi-network-service", "bridge service", "network design"]
+      - q: "What happens if you don't define any networks?"
+        a: "Compose creates a single default network (<project-folder>_default) and connects all services to it. Everyone can reach everyone."
+        labels: ["Networks"]
+        rel:
+          - ["default-network", "automatically created", "all connected"]
+
+  - title: "External and Configured Networks"
+    explanation: |
+      Sometimes containers in different Compose projects need to communicate:
+
+      ```yaml
+      networks:
+        shared:
+          external: true
+          name: my-shared-network
+      ```
+
+      Or you configure the network more precisely:
+
+      ```yaml
+      networks:
+        backend:
+          driver: bridge
+          ipam:
+            config:
+              - subnet: 172.28.0.0/16
+        monitoring:
+          driver: bridge
+          internal: true    # No internet access!
+      ```
+
+      **`internal: true`** creates a network without internet access — perfect for databases that should never communicate externally.
+    examples:
+      - q: "external: true"
+        a: "Uses an existing network created outside of Compose. Compose doesn't create it and doesn't delete it on 'down'."
+        labels: ["Networks"]
+        rel:
+          - ["external-network", "cross-project", "existing network"]
+      - q: "internal: true"
+        a: "Creates an isolated network without internet access. Containers in it can only communicate with each other — perfect for databases or internal services."
+        labels: ["Networks"]
+        rel:
+          - ["internal-network", "no internet", "maximum isolation"]
+      - q: "How do containers from different Compose projects communicate?"
+        a: "Through a shared external network. Both projects declare it with 'external: true' and the same name. Alternatively: docker network create shared-net"
+        labels: ["Networks"]
+        rel:
+          - ["cross-project-network", "share external network", "cross-project"]
+
+  - title: "Volumes in Compose"
+    explanation: |
+      Declaring volumes in Compose:
+
+      ```yaml
+      services:
+        db:
+          image: postgres:16
+          volumes:
+            # Named Volume
+            - db-data:/var/lib/postgresql/data
+            # Bind Mount
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+            # Anonymous Volume (not recommended)
+            - /var/log/postgresql
+
+        web:
+          image: nginx:alpine
+          volumes:
+            # Bind Mount (read-only)
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./html:/usr/share/nginx/html:ro
+
+      volumes:
+        db-data:
+          driver: local
+      ```
+
+      **Three volume types:**
+      1. **Named Volumes** (`db-data:/path`) — Managed by Docker, persistent
+      2. **Bind Mounts** (`./local:/container`) — Link to host file system
+      3. **Anonymous Volumes** (`/path`) — Temporary, without name (rarely useful)
+    examples:
+      - q: "db-data:/var/lib/postgresql/data"
+        a: "Mounts the Named Volume 'db-data' into the PostgreSQL data directory. The DB data survives 'docker compose down' — only 'down -v' deletes it."
+        labels: ["Volumes"]
+        rel:
+          - ["named-volume-compose", "DB persistence", "data survives"]
+      - q: "./nginx.conf:/etc/nginx/nginx.conf:ro"
+        a: "Bind Mount: the local nginx.conf is mounted into the container. :ro = read-only, the container cannot modify the file."
+        labels: ["Volumes"]
+        rel:
+          - ["bind-mount-config", "mount configuration", "write protection"]
+      - q: "When do you use Named Volumes and when Bind Mounts?"
+        a: "Named Volumes for persistent data (databases, uploads). Bind Mounts for development (code synchronization) and configuration files."
+        labels: ["Volumes"]
+        rel:
+          - ["volume-wahl", "named vs. bind", "use cases"]
+
+  - title: "Volume Backup and Sharing"
+    explanation: |
+      Compose volumes can be shared between services:
+
+      ```yaml
+      services:
+        app:
+          build: ./app
+          volumes:
+            - uploads:/app/uploads
+
+        backup:
+          image: alpine
+          volumes:
+            - uploads:/data/uploads:ro
+            - ./backups:/backups
+          command: sh -c "tar czf /backups/upload-backup.tar.gz /data/uploads"
+          profiles:
+            - backup
+
+      volumes:
+        uploads:
+      ```
+
+      ```bash
+      # Create backup
+      docker compose --profile backup run backup
+      ```
+
+      The **backup service** has read access to the same upload data and creates an archive on the host.
+    examples:
+      - q: "Can multiple services use the same volume?"
+        a: "Yes! Both declare the same volume name. Caution: simultaneous write access can lead to conflicts — use :ro for read-only services."
+        labels: ["Volume Sharing"]
+        rel:
+          - ["shared-volume", "multi-service", "read/write conflict"]
+      - q: "docker compose --profile backup run backup"
+        a: "Starts the backup service once (run instead of up). The 'backup' profile ensures it doesn't start with normal 'up'."
+        labels: ["Volume Sharing"]
+        rel:
+          - ["compose-run", "one-time execution", "backup workflow"]
+      - q: "How do you transfer volumes to another server?"
+        a: "Export volume data as a tar archive, copy it to the new server, and import it into a volume there. Or: use Docker volume backup tools like 'docker-volume-backup'."
+        labels: ["Volume Sharing"]
+        rel:
+          - ["volume-migration", "export/import", "server migration"]
+
+  - title: "Knowledge Check"
+    explanation: |
+      Test your knowledge of Compose networks and volumes!
+    examples:
+      - q: "How do you mark a network as 'no internet access'?"
+        type: input
+        a:
+          - "internal: true"
+          - "internal"
+      - q: "Why separate services into different networks?"
+        type: select
+        options:
+          - text: "Security — the database is not directly reachable from the web server"
+            correct: true
+          - text: "Performance — separate networks are faster"
+          - text: "Docker only supports one network with 5 containers"
+          - text: "It is a mandatory setting in docker-compose.yaml"
+      - q: "Which statements about volumes in Compose are correct?"
+        type: multiple-choice
+        options:
+          - text: "Named Volumes are declared under 'volumes:' at the bottom"
+            correct: true
+          - text: ":ro makes a mount read-only"
+            correct: true
+          - text: "'docker compose down' deletes Named Volumes"
+          - text: "Multiple services can use the same volume"
+            correct: true
+      - q: "How does a Compose project use an externally created network?"
+        type: input
+        a:
+          - "external: true"
+          - "external"
